@@ -70,12 +70,15 @@ export default function Auth() {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="p-6">
-        <div className="flex items-center gap-2">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+        >
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
             <Scissors className="w-5 h-5 text-primary" />
           </div>
           <span className="text-xl font-semibold text-foreground">BarberPro</span>
-        </div>
+        </button>
       </header>
 
       {/* Main Content */}

@@ -85,6 +85,15 @@ export default function ClientHome() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="px-5 pt-12 pb-6">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
+        >
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Scissors className="w-4 h-4 text-primary" />
+          </div>
+          <span className="text-lg font-semibold text-foreground">BarberPro</span>
+        </button>
         <div className="mb-6">
           <p className="text-muted-foreground text-sm">Olá,</p>
           <h1 className="text-2xl font-bold text-foreground">
