@@ -3,8 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, Clock, DollarSign, TrendingUp, Users, Check, X, ChevronLeft, ChevronRight, Scissors } from 'lucide-react';
+import { Calendar, Clock, DollarSign, TrendingUp, Users, Check, X, ChevronLeft, ChevronRight, Scissors, Crown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 interface Appointment {
   id: string;
@@ -24,7 +25,11 @@ interface Appointment {
   };
 }
 
-export default function BarberDashboard() {
+interface BarberDashboardProps {
+  isAdmin?: boolean;
+}
+
+export default function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -174,19 +179,35 @@ export default function BarberDashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="px-5 pt-12 pb-6">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
-        >
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Scissors className="w-4 h-4 text-primary" />
-          </div>
-          <span className="text-lg font-semibold text-foreground">BarberPro</span>
-        </button>
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Scissors className="w-4 h-4 text-primary" />
+            </div>
+            <span className="text-lg font-semibold text-foreground">BarberPro</span>
+          </button>
+
+          {isAdmin && (
+            <Button
+              onClick={() => navigate('/admin')}
+              variant="outline"
+              className="gap-2 border-primary/50 text-primary hover:bg-primary/10"
+            >
+              <Crown className="w-4 h-4" />
+              Painel
+            </Button>
+          )}
+        </div>
         <div className="mb-6">
           <p className="text-muted-foreground text-sm">Olá,</p>
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             {profile?.full_name?.split(' ')[0]}
+            {isAdmin && (
+              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">Admin</span>
+            )}
           </h1>
         </div>
 

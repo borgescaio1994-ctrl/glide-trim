@@ -6,7 +6,7 @@ import BarberDashboard from '@/components/barber/BarberDashboard';
 import { Loader2 } from 'lucide-react';
 
 export default function Index() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,5 +27,6 @@ export default function Index() {
     return null;
   }
 
-  return profile.role === 'barber' ? <BarberDashboard /> : <ClientHome />;
+  // Admin and barber both use BarberDashboard, but admin has extra panel button
+  return profile.role === 'barber' ? <BarberDashboard isAdmin={isAdmin} /> : <ClientHome />;
 }
