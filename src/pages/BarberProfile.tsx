@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Scissors, Clock, DollarSign, ChevronRight, Calendar } from 'lucide-react';
+import { ArrowLeft, Scissors, Clock, DollarSign, ChevronRight, Calendar, Image } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 
 interface Barber {
@@ -26,6 +26,12 @@ interface Schedule {
   end_time: string;
 }
 
+interface GalleryImage {
+  id: string;
+  image_url: string;
+  caption: string | null;
+}
+
 const DAYS_OF_WEEK = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 export default function BarberProfile() {
@@ -34,7 +40,15 @@ export default function BarberProfile() {
   const [barber, setBarber] = useState<Barber | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (barberId) {
+      fetchData();
+    }
+  }, [barberId]);
 
   useEffect(() => {
     if (barberId) {
@@ -76,6 +90,17 @@ export default function BarberProfile() {
 
       if (schedulesData) {
         setSchedules(schedulesData);
+      }
+
+      // Fetch gallery images
+      const { data: galleryData } = await supabase
+        .from('barber_gallery')
+        .select('*')
+        .eq('barber_id', barberId)
+        .order('created_at', { ascending: false });
+
+      if (galleryData) {
+        setGalleryImages(galleryData);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -169,7 +194,7 @@ export default function BarberProfile() {
       </div>
 
       {/* Services */}
-      <div className="px-5 pb-8">
+      <div className="px-5 pb-6">
         <h2 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
           <Scissors className="w-4 h-4 text-primary" />
           Serviços
@@ -215,6 +240,45 @@ export default function BarberProfile() {
           </div>
         )}
       </div>
+
+      {/* Gallery */}
+      {galleryImages.length > 0 && (
+        <div className="px-5 pb-8">
+          <h2 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+            <Image className="w-4 h-4 text-primary" />
+            Galeria de Trabalhos
+          </h2>
+          <div className="grid grid-cols-3 gap-2">
+            {galleryImages.map((image) => (
+              <button
+                key={image.id}
+                onClick={() => setSelectedImage(image.image_url)}
+                className="aspect-square rounded-xl overflow-hidden bg-muted hover:opacity-90 transition-opacity"
+              >
+                <img
+                  src={image.image_url}
+                  alt="Trabalho do barbeiro"
+                  className="w-full h-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <img
+            src={selectedImage}
+            alt="Trabalho do barbeiro"
+            className="max-w-full max-h-full object-contain rounded-lg"
+          />
+        </div>
+      )}
     </div>
   );
 }

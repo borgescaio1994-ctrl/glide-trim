@@ -1,7 +1,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { User, Mail, Phone, LogOut, Settings, Calendar, Clock } from 'lucide-react';
+import { User, Mail, Phone, LogOut, Settings, Calendar, Clock, Image } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Profile() {
@@ -86,6 +86,19 @@ export default function Profile() {
               <div className="flex-1 text-left">
                 <h3 className="font-medium text-foreground">Meus Serviços</h3>
                 <p className="text-sm text-muted-foreground">Gerencie seus serviços oferecidos</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => navigate('/gallery')}
+              className="w-full bg-card rounded-xl p-4 flex items-center gap-4 border border-border/50 hover:bg-card/80 transition-colors"
+            >
+              <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                <Image className="w-5 h-5 text-purple-500" />
+              </div>
+              <div className="flex-1 text-left">
+                <h3 className="font-medium text-foreground">Minha Galeria</h3>
+                <p className="text-sm text-muted-foreground">Adicione fotos dos seus trabalhos</p>
               </div>
             </button>
           </>
