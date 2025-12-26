@@ -15,6 +15,7 @@ import Finances from "./pages/Finances";
 import BookAppointment from "./pages/BookAppointment";
 import BarberProfile from "./pages/BarberProfile";
 import Gallery from "./pages/Gallery";
+import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
               <Route path="/book/:barberId/:serviceId" element={<BookAppointment />} />
               <Route path="/barber/:barberId" element={<BarberProfile />} />
               <Route path="/gallery" element={<Gallery />} />
+              <Route path="/admin" element={<AdminDashboard />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Layout>
