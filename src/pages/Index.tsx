@@ -1,19 +1,10 @@
 import { useAuth } from '@/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
 import ClientHome from '@/components/client/ClientHome';
 import BarberDashboard from '@/components/barber/BarberDashboard';
 import { Loader2 } from 'lucide-react';
 
 export default function Index() {
-  const { user, profile, isAdmin, loading } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
+  const { profile, isAdmin, loading } = useAuth();
 
   if (loading) {
     return (
@@ -23,10 +14,11 @@ export default function Index() {
     );
   }
 
-  if (!user || !profile) {
-    return null;
+  // If user is a barber or admin, show barber dashboard
+  if (profile?.role === 'barber') {
+    return <BarberDashboard isAdmin={isAdmin} />;
   }
 
-  // Admin and barber both use BarberDashboard, but admin has extra panel button
-  return profile.role === 'barber' ? <BarberDashboard isAdmin={isAdmin} /> : <ClientHome />;
+  // For everyone else (clients or not logged in), show public home
+  return <ClientHome />;
 }
