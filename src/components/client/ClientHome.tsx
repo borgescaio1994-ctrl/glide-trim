@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Scissors, Clock, DollarSign, ChevronRight, Star } from 'lucide-react';
+import { Search, Scissors, Clock, DollarSign, ChevronRight, LogIn } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 interface Barber {
   id: string;
@@ -21,7 +22,7 @@ interface Service {
 }
 
 export default function ClientHome() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -85,20 +86,42 @@ export default function ClientHome() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="px-5 pt-12 pb-6">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
-        >
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Scissors className="w-4 h-4 text-primary" />
-          </div>
-          <span className="text-lg font-semibold text-foreground">BarberPro</span>
-        </button>
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Scissors className="w-4 h-4 text-primary" />
+            </div>
+            <span className="text-lg font-semibold text-foreground">BarberPro</span>
+          </button>
+          
+          {!user ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/auth')}
+              className="gap-2"
+            >
+              <LogIn className="w-4 h-4" />
+              Entrar
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/profile')}
+              className="gap-2"
+            >
+              {profile?.full_name?.split(' ')[0]}
+            </Button>
+          )}
+        </div>
+        
         <div className="mb-6">
-          <p className="text-muted-foreground text-sm">Olá,</p>
-          <h1 className="text-2xl font-bold text-foreground">
-            {profile?.full_name?.split(' ')[0]}
-          </h1>
+          <p className="text-muted-foreground text-sm">Bem-vindo à</p>
+          <h1 className="text-2xl font-bold text-foreground">BarberPro</h1>
         </div>
 
         {/* Search */}
