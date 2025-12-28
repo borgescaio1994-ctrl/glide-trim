@@ -148,6 +148,33 @@ export type Database = {
           },
         ]
       }
+      home_settings: {
+        Row: {
+          created_at: string
+          hero_image_url: string | null
+          id: string
+          subtitle: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          hero_image_url?: string | null
+          id?: string
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          hero_image_url?: string | null
+          id?: string
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       phone_verifications: {
         Row: {
           created_at: string
