@@ -15,7 +15,8 @@ import {
   BarChart3,
   Crown,
   AlertCircle,
-  Settings
+  Settings,
+  UserPlus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -31,6 +32,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import HomeSettingsEditor from '@/components/admin/HomeSettingsEditor';
+import BarberManager from '@/components/admin/BarberManager';
 
 interface Barber {
   id: string;
@@ -476,6 +478,15 @@ export default function AdminDashboard() {
             })}
           </div>
         )}
+      </div>
+
+      {/* Cadastrar Barbeiros */}
+      <div className="px-5 mb-6">
+        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+          <UserPlus className="w-5 h-5 text-primary" />
+          Cadastrar Barbeiros
+        </h2>
+        <BarberManager />
       </div>
 
       {/* Home Settings */}
