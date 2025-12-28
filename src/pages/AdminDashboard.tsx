@@ -14,8 +14,7 @@ import {
   PieChart,
   BarChart3,
   Crown,
-  AlertCircle,
-  Settings
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -30,7 +29,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import HomeSettingsEditor from '@/components/admin/HomeSettingsEditor';
 
 interface Barber {
   id: string;
@@ -476,15 +474,6 @@ export default function AdminDashboard() {
             })}
           </div>
         )}
-      </div>
-
-      {/* Home Settings */}
-      <div className="px-5 mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Settings className="w-5 h-5 text-primary" />
-          Configurações da Home
-        </h2>
-        <HomeSettingsEditor />
       </div>
 
       {/* Barber Management */}
