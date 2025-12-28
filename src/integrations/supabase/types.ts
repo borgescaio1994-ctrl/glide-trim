@@ -235,33 +235,6 @@ export type Database = {
         }
         Relationships: []
       }
-      registered_barbers: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          email: string
-          full_name: string
-          id: string
-          phone: string | null
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          email: string
-          full_name: string
-          id?: string
-          phone?: string | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          email?: string
-          full_name?: string
-          id?: string
-          phone?: string | null
-        }
-        Relationships: []
-      }
       services: {
         Row: {
           barber_id: string

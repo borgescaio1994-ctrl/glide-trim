@@ -31,31 +31,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string, userEmail?: string, userName?: string) => {
+  const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .maybeSingle();
+      .single();
 
     if (!error && data) {
       setProfile(data as Profile);
-    } else if (!data && userEmail) {
-      // Profile doesn't exist (Google OAuth user), create it as client
-      const { data: newProfile, error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          email: userEmail,
-          full_name: userName || 'Usuário',
-          role: 'client',
-        })
-        .select()
-        .single();
-
-      if (!insertError && newProfile) {
-        setProfile(newProfile as Profile);
-      }
     }
   };
 
@@ -77,11 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (session?.user) {
         setTimeout(() => {
-          fetchProfile(
-            session.user.id,
-            session.user.email,
-            session.user.user_metadata?.full_name || session.user.user_metadata?.name
-          );
+          fetchProfile(session.user.id);
           checkAdminRole(session.user.id);
         }, 0);
       } else {
@@ -96,11 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        fetchProfile(
-          session.user.id,
-          session.user.email,
-          session.user.user_metadata?.full_name || session.user.user_metadata?.name
-        );
+        fetchProfile(session.user.id);
         checkAdminRole(session.user.id);
       }
       setLoading(false);
