@@ -21,6 +21,12 @@ interface Service {
   barber?: Barber;
 }
 
+interface HomeSettings {
+  hero_image_url: string | null;
+  title: string;
+  subtitle: string | null;
+}
+
 export default function ClientHome() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
@@ -28,6 +34,7 @@ export default function ClientHome() {
   const [services, setServices] = useState<Service[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [homeSettings, setHomeSettings] = useState<HomeSettings | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -35,6 +42,17 @@ export default function ClientHome() {
 
   const fetchData = async () => {
     try {
+      // Fetch home settings
+      const { data: settingsData } = await supabase
+        .from('home_settings')
+        .select('hero_image_url, title, subtitle')
+        .limit(1)
+        .single();
+
+      if (settingsData) {
+        setHomeSettings(settingsData);
+      }
+
       // Fetch barbers
       const { data: barbersData } = await supabase
         .from('profiles')
@@ -84,8 +102,20 @@ export default function ClientHome() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Hero Section */}
+      {homeSettings?.hero_image_url && (
+        <div className="relative w-full h-64 overflow-hidden">
+          <img 
+            src={homeSettings.hero_image_url} 
+            alt="Hero" 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background" />
+        </div>
+      )}
+
       {/* Header */}
-      <header className="px-5 pt-12 pb-6">
+      <header className={`px-5 pb-6 ${homeSettings?.hero_image_url ? '-mt-16 relative z-10' : 'pt-12'}`}>
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => navigate('/')}
@@ -94,7 +124,9 @@ export default function ClientHome() {
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Scissors className="w-4 h-4 text-primary" />
             </div>
-            <span className="text-lg font-semibold text-foreground">BarberPro</span>
+            <span className="text-lg font-semibold text-foreground">
+              {homeSettings?.title || 'BarberPro'}
+            </span>
           </button>
           
           {!user ? (
@@ -120,8 +152,12 @@ export default function ClientHome() {
         </div>
         
         <div className="mb-6">
-          <p className="text-muted-foreground text-sm">Bem-vindo à</p>
-          <h1 className="text-2xl font-bold text-foreground">BarberPro</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            {homeSettings?.title || 'BarberPro'}
+          </h1>
+          {homeSettings?.subtitle && (
+            <p className="text-muted-foreground text-sm mt-1">{homeSettings.subtitle}</p>
+          )}
         </div>
 
         {/* Search */}
