@@ -1,17 +1,40 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { User, Mail, Phone, LogOut, Settings, Calendar, Clock, Image } from 'lucide-react';
+import { User, Mail, Phone, LogOut, Settings, Calendar, Clock, Image, Crown } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Profile() {
-  const { profile, signOut } = useAuth();
+  const { profile, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
     await signOut();
     toast.success('Você saiu da conta');
     navigate('/auth');
+  };
+
+  const getRoleDisplay = () => {
+    if (isAdmin) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary mt-1">
+          <Crown className="w-3 h-3" />
+          Dono
+        </span>
+      );
+    }
+    if (profile?.role === 'barber') {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary mt-1">
+          Barbeiro
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground mt-1">
+        Cliente
+      </span>
+    );
   };
 
   return (
@@ -38,9 +61,7 @@ export default function Profile() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-foreground">{profile?.full_name}</h2>
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary mt-1">
-                {profile?.role === 'barber' ? 'Barbeiro' : 'Cliente'}
-              </span>
+              {getRoleDisplay()}
             </div>
           </div>
 
@@ -61,7 +82,7 @@ export default function Profile() {
 
       {/* Menu Items */}
       <div className="px-5 space-y-3">
-        {profile?.role === 'barber' && (
+        {(profile?.role === 'barber' || isAdmin) && (
           <>
             <button
               onClick={() => navigate('/schedule')}
