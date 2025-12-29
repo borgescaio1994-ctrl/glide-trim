@@ -15,9 +15,13 @@ import {
   BarChart3,
   Crown,
   AlertCircle,
-  Settings
+  Settings,
+  UserPlus,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -30,6 +34,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import HomeSettingsEditor from '@/components/admin/HomeSettingsEditor';
 
 interface Barber {
@@ -37,6 +49,14 @@ interface Barber {
   full_name: string;
   email: string;
   avatar_url: string | null;
+  created_at: string;
+}
+
+interface RegisteredBarber {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
   created_at: string;
 }
 
@@ -55,17 +75,21 @@ interface BarberStats {
 }
 
 export default function AdminDashboard() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'week' | 'month'>('month');
   const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [registeredBarbers, setRegisteredBarbers] = useState<RegisteredBarber[]>([]);
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [totalAppointments, setTotalAppointments] = useState(0);
   const [averageTicket, setAverageTicket] = useState(0);
   const [serviceStats, setServiceStats] = useState<ServiceStats[]>([]);
   const [barberStats, setBarberStats] = useState<BarberStats[]>([]);
   const [deletingBarber, setDeletingBarber] = useState<string | null>(null);
+  const [showAddBarber, setShowAddBarber] = useState(false);
+  const [newBarber, setNewBarber] = useState({ full_name: '', email: '', phone: '' });
+  const [addingBarber, setAddingBarber] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -75,6 +99,7 @@ export default function AdminDashboard() {
     setLoading(true);
     await Promise.all([
       fetchBarbers(),
+      fetchRegisteredBarbers(),
       fetchFinancialStats(),
       fetchServiceStats(),
     ]);
@@ -90,6 +115,77 @@ export default function AdminDashboard() {
 
     if (data) {
       setBarbers(data);
+    }
+  };
+
+  const fetchRegisteredBarbers = async () => {
+    const { data } = await supabase
+      .from('registered_barbers')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (data) {
+      setRegisteredBarbers(data);
+    }
+  };
+
+  const handleAddBarber = async () => {
+    if (!newBarber.full_name || !newBarber.email) {
+      toast.error('Nome e email são obrigatórios');
+      return;
+    }
+
+    setAddingBarber(true);
+
+    try {
+      // Check if email already exists in registered_barbers
+      const { data: existing } = await supabase
+        .from('registered_barbers')
+        .select('id')
+        .eq('email', newBarber.email.toLowerCase())
+        .maybeSingle();
+
+      if (existing) {
+        toast.error('Este email já está cadastrado');
+        setAddingBarber(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('registered_barbers')
+        .insert({
+          full_name: newBarber.full_name,
+          email: newBarber.email.toLowerCase(),
+          phone: newBarber.phone || null,
+          created_by: user?.id || null,
+        });
+
+      if (error) throw error;
+
+      toast.success('Barbeiro cadastrado! Quando ele fizer login com este email, terá acesso de barbeiro.');
+      setNewBarber({ full_name: '', email: '', phone: '' });
+      setShowAddBarber(false);
+      fetchRegisteredBarbers();
+    } catch (error: any) {
+      console.error('Error adding barber:', error);
+      toast.error('Erro ao cadastrar barbeiro');
+    } finally {
+      setAddingBarber(false);
+    }
+  };
+
+  const handleDeleteRegisteredBarber = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('registered_barbers')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success('Barbeiro removido da lista');
+      fetchRegisteredBarbers();
+    } catch (error) {
+      toast.error('Erro ao remover barbeiro');
     }
   };
 
@@ -487,17 +583,121 @@ export default function AdminDashboard() {
         <HomeSettingsEditor />
       </div>
 
-      {/* Barber Management */}
+      {/* Add Barber Section */}
+      <div className="px-5 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <UserPlus className="w-5 h-5 text-primary" />
+            Cadastrar Barbeiro
+          </h2>
+          <Dialog open={showAddBarber} onOpenChange={setShowAddBarber}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-2">
+                <UserPlus className="w-4 h-4" />
+                Adicionar
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Cadastrar Novo Barbeiro</DialogTitle>
+                <DialogDescription>
+                  Informe os dados do barbeiro. Quando ele fizer login com este email, terá acesso automático como barbeiro.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                <div>
+                  <Label htmlFor="barber-name">Nome completo *</Label>
+                  <Input
+                    id="barber-name"
+                    placeholder="Ex: João Silva"
+                    value={newBarber.full_name}
+                    onChange={(e) => setNewBarber({ ...newBarber, full_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="barber-email">Email *</Label>
+                  <Input
+                    id="barber-email"
+                    type="email"
+                    placeholder="joao@email.com"
+                    value={newBarber.email}
+                    onChange={(e) => setNewBarber({ ...newBarber, email: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="barber-phone">Telefone (opcional)</Label>
+                  <Input
+                    id="barber-phone"
+                    placeholder="(11) 99999-9999"
+                    value={newBarber.phone}
+                    onChange={(e) => setNewBarber({ ...newBarber, phone: e.target.value })}
+                  />
+                </div>
+                <Button 
+                  onClick={handleAddBarber} 
+                  className="w-full"
+                  disabled={addingBarber}
+                >
+                  {addingBarber ? 'Cadastrando...' : 'Cadastrar Barbeiro'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {registeredBarbers.length > 0 && (
+          <div className="space-y-2 mb-4">
+            <p className="text-sm text-muted-foreground">Emails aguardando registro:</p>
+            {registeredBarbers.map((rb) => {
+              // Check if already has active profile
+              const hasProfile = barbers.some(b => b.email.toLowerCase() === rb.email.toLowerCase());
+              return (
+                <div 
+                  key={rb.id} 
+                  className={`bg-card rounded-xl p-3 border flex items-center justify-between ${
+                    hasProfile ? 'border-green-500/30 bg-green-500/5' : 'border-border/50'
+                  }`}
+                >
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">{rb.full_name}</p>
+                    <p className="text-xs text-muted-foreground">{rb.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {hasProfile ? (
+                      <span className="text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded-full">Ativo</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">Aguardando</span>
+                    )}
+                    {!hasProfile && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteRegisteredBarber(rb.id)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Active Barbers Management */}
       <div className="px-5 pb-8">
         <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <Users className="w-5 h-5 text-primary" />
-          Gerenciar Barbeiros
+          Barbeiros Ativos
         </h2>
 
         {barbers.length === 0 ? (
           <div className="bg-card rounded-2xl p-6 border border-border/50 text-center">
             <Users className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-            <p className="text-muted-foreground">Nenhum barbeiro cadastrado</p>
+            <p className="text-muted-foreground">Nenhum barbeiro ativo</p>
+            <p className="text-xs text-muted-foreground mt-1">Cadastre um email acima e peça para o barbeiro fazer login</p>
           </div>
         ) : (
           <div className="space-y-3">
