@@ -1,6 +1,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import ClientHome from '@/components/client/ClientHome';
 import BarberDashboard from '@/components/barber/BarberDashboard';
+import AdminHome from '@/components/admin/AdminHome';
 import { Loader2 } from 'lucide-react';
 
 export default function Index() {
@@ -14,9 +15,14 @@ export default function Index() {
     );
   }
 
-  // If user is a barber or admin, show barber dashboard
+  // If user is admin (owner), show admin home
+  if (isAdmin) {
+    return <AdminHome />;
+  }
+
+  // If user is a barber, show barber dashboard
   if (profile?.role === 'barber') {
-    return <BarberDashboard isAdmin={isAdmin} />;
+    return <BarberDashboard isAdmin={false} />;
   }
 
   // For everyone else (clients or not logged in), show public home

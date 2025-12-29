@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Calendar, User, BarChart3 } from 'lucide-react';
+import { Home, Calendar, User, BarChart3, Crown } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const clientNavItems = [
@@ -15,12 +15,23 @@ const barberNavItems = [
   { icon: User, label: 'Perfil', path: '/profile' },
 ];
 
+const adminNavItems = [
+  { icon: Home, label: 'Início', path: '/' },
+  { icon: Crown, label: 'Painel', path: '/admin' },
+  { icon: User, label: 'Perfil', path: '/profile' },
+];
+
 export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, isAdmin } = useAuth();
 
-  const navItems = profile?.role === 'barber' ? barberNavItems : clientNavItems;
+  // Admin gets admin nav, barber gets barber nav, others get client nav
+  const navItems = isAdmin 
+    ? adminNavItems 
+    : profile?.role === 'barber' 
+      ? barberNavItems 
+      : clientNavItems;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border/50 safe-area-inset-bottom">
