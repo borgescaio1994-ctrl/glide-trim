@@ -138,34 +138,33 @@ export default function AdminDashboard() {
     setAddingBarber(true);
 
     try {
-      // Check if email already exists in registered_barbers
-      const { data: existing } = await supabase
-        .from('registered_barbers')
-        .select('id')
-        .eq('email', newBarber.email.toLowerCase())
-        .maybeSingle();
+      // Call edge function to create the barber account
+      const { data, error } = await supabase.functions.invoke('create-barber', {
+        body: {
+          email: newBarber.email,
+          fullName: newBarber.full_name,
+          phone: newBarber.phone || null,
+        },
+      });
 
-      if (existing) {
-        toast.error('Este email já está cadastrado');
+      if (error) {
+        console.error('Error from edge function:', error);
+        toast.error('Erro ao criar conta do barbeiro');
         setAddingBarber(false);
         return;
       }
 
-      const { error } = await supabase
-        .from('registered_barbers')
-        .insert({
-          full_name: newBarber.full_name,
-          email: newBarber.email.toLowerCase(),
-          phone: newBarber.phone || null,
-          created_by: user?.id || null,
-        });
+      if (data?.error) {
+        toast.error(data.error);
+        setAddingBarber(false);
+        return;
+      }
 
-      if (error) throw error;
-
-      toast.success('Barbeiro cadastrado! Quando ele fizer login com este email, terá acesso de barbeiro.');
+      toast.success('Barbeiro criado com sucesso! Ele pode fazer login com a senha padrão: BARBEIRO2026');
       setNewBarber({ full_name: '', email: '', phone: '' });
       setShowAddBarber(false);
       fetchRegisteredBarbers();
+      fetchBarbers();
     } catch (error: any) {
       console.error('Error adding barber:', error);
       toast.error('Erro ao cadastrar barbeiro');
