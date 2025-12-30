@@ -12,7 +12,6 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'client' | 'barber'>('client');
   const [isLoading, setIsLoading] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
@@ -47,7 +46,8 @@ export default function Auth() {
           return;
         }
         
-        const { error } = await signUp(email, password, fullName, role);
+        // Cadastro apenas como cliente
+        const { error } = await signUp(email, password, fullName, 'client');
         if (error) {
           if (error.message.includes('already registered')) {
             toast.error('Este email já está cadastrado');
@@ -97,54 +97,25 @@ export default function Auth() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {!isLogin && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="fullName" className="text-sm text-foreground">
-                    Nome completo
-                  </Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      id="fullName"
-                      type="text"
-                      placeholder="Seu nome"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="pl-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
-                    />
-                  </div>
+              <div className="space-y-2">
+                <Label htmlFor="fullName" className="text-sm text-foreground">
+                  Nome completo
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    id="fullName"
+                    type="text"
+                    placeholder="Seu nome"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="pl-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
+                  />
                 </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm text-foreground">Tipo de conta</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setRole('client')}
-                      className={`p-4 rounded-xl border transition-all duration-200 ${
-                        role === 'client'
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border bg-card text-muted-foreground hover:border-muted-foreground'
-                      }`}
-                    >
-                      <User className="w-6 h-6 mx-auto mb-2" />
-                      <span className="text-sm font-medium">Cliente</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRole('barber')}
-                      className={`p-4 rounded-xl border transition-all duration-200 ${
-                        role === 'barber'
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border bg-card text-muted-foreground hover:border-muted-foreground'
-                      }`}
-                    >
-                      <Scissors className="w-6 h-6 mx-auto mb-2" />
-                      <span className="text-sm font-medium">Barbeiro</span>
-                    </button>
-                  </div>
-                </div>
-              </>
+                <p className="text-xs text-muted-foreground">
+                  Barbeiros devem fazer login com email e senha fornecidos pelo administrador.
+                </p>
+              </div>
             )}
 
             <div className="space-y-2">
