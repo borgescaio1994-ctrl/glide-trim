@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Scissors, Clock, DollarSign, ChevronRight, Calendar, Image } from 'lucide-react';
+import { ArrowLeft, Scissors, Clock, DollarSign, ChevronRight, Calendar, Image, Camera } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
+import ReactCrop, { Crop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 
 interface Barber {
   id: string;
@@ -37,12 +41,18 @@ const DAYS_OF_WEEK = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 export default function BarberProfile() {
   const { barberId } = useParams();
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [barber, setBarber] = useState<Barber | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [crop, setCrop] = useState<Crop>({ unit: '%', width: 50, height: 50, x: 25, y: 25 });
+  const [completedCrop, setCompletedCrop] = useState<Crop | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (barberId) {
@@ -116,6 +126,99 @@ export default function BarberProfile() {
     }).format(price);
   };
 
+  const isOwnProfile = profile?.id === barberId && profile?.role === 'barber';
+
+  const selectImage = async (source: CameraSource) => {
+    try {
+      const image = await CapacitorCamera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source,
+      });
+      setImageToCrop(image.dataUrl || null);
+      setShowCropModal(true);
+    } catch (error) {
+      console.error('Error selecting image:', error);
+    }
+  };
+
+  const handleCropComplete = (crop: Crop) => {
+    setCompletedCrop(crop);
+  };
+
+  const uploadImage = async () => {
+    if (!completedCrop || !imageToCrop) return;
+
+    setUploading(true);
+    try {
+      // Create canvas for cropping
+      const image = new window.Image();
+      image.src = imageToCrop;
+      await new Promise((resolve) => {
+        image.onload = resolve;
+      });
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const scaleX = image.naturalWidth / image.width;
+      const scaleY = image.naturalHeight / image.height;
+
+      canvas.width = completedCrop.width * scaleX;
+      canvas.height = completedCrop.height * scaleY;
+
+      ctx.drawImage(
+        image,
+        completedCrop.x * scaleX,
+        completedCrop.y * scaleY,
+        completedCrop.width * scaleX,
+        completedCrop.height * scaleY,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+
+        const fileName = `${barberId}/avatar-${Date.now()}.jpg`;
+        const { data, error } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, blob, {
+            contentType: 'image/jpeg',
+            upsert: true,
+          });
+
+        if (error) throw error;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(fileName);
+
+        // Update profile
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ avatar_url: publicUrl })
+          .eq('id', barberId);
+
+        if (updateError) throw updateError;
+
+        // Update local state
+        setBarber(prev => prev ? { ...prev, avatar_url: publicUrl } : null);
+        setShowCropModal(false);
+        setImageToCrop(null);
+        setCompletedCrop(null);
+      }, 'image/jpeg');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -146,7 +249,7 @@ export default function BarberProfile() {
         {/* Profile Card */}
         <div className="bg-card rounded-2xl p-6 border border-border/50">
           <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center overflow-hidden">
+            <div className="relative w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center overflow-hidden">
               {barber.avatar_url ? (
                 <img
                   src={barber.avatar_url}
@@ -155,6 +258,14 @@ export default function BarberProfile() {
                 />
               ) : (
                 <Scissors className="w-10 h-10 text-primary" />
+              )}
+              {isOwnProfile && (
+                <button
+                  onClick={() => selectImage(CameraSource.Photos)}
+                  className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity rounded-2xl"
+                >
+                  <Camera className="w-6 h-6 text-white" />
+                </button>
               )}
             </div>
             <div>
@@ -277,6 +388,42 @@ export default function BarberProfile() {
             alt="Trabalho do barbeiro"
             className="max-w-full max-h-full object-contain rounded-lg"
           />
+        </div>
+      )}
+
+      {/* Crop Modal */}
+      {showCropModal && imageToCrop && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-4 text-center">Ajustar Foto</h3>
+            <div className="mb-4">
+              <ReactCrop
+                crop={crop}
+                onChange={setCrop}
+                onComplete={handleCropComplete}
+                aspect={1}
+                circularCrop
+              >
+                <img src={imageToCrop} alt="Imagem para cortar" className="max-w-full" />
+              </ReactCrop>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCropModal(false)}
+                className="flex-1 bg-muted text-muted-foreground py-2 rounded-lg"
+                disabled={uploading}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={uploadImage}
+                className="flex-1 bg-primary text-primary-foreground py-2 rounded-lg disabled:opacity-50"
+                disabled={uploading || !completedCrop}
+              >
+                {uploading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Salvar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

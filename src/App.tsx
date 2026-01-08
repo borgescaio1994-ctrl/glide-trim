@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -17,36 +18,51 @@ import BarberProfile from "./pages/BarberProfile";
 import Gallery from "./pages/Gallery";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import { App as CapacitorApp } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/services" element={<Services />} />
-              <Route path="/schedule" element={<Schedule />} />
-              <Route path="/appointments" element={<Appointments />} />
-              <Route path="/finances" element={<Finances />} />
-              <Route path="/book/:barberId/:serviceId" element={<BookAppointment />} />
-              <Route path="/barber/:barberId" element={<BarberProfile />} />
-              <Route path="/gallery" element={<Gallery />} />
-              <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Layout>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  useEffect(() => {
+    // Handle Android back button
+    CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+      if (canGoBack) {
+        window.history.back();
+      }
+      // Do nothing if cannot go back, preventing app exit
+    });
+
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/services" element={<Services />} />
+                <Route path="/schedule" element={<Schedule />} />
+                <Route path="/appointments" element={<Appointments />} />
+                <Route path="/finances" element={<Finances />} />
+                <Route path="/book/:barberId/:serviceId" element={<BookAppointment />} />
+                <Route path="/barber/:barberId" element={<BarberProfile />} />
+                <Route path="/gallery" element={<Gallery />} />
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Layout>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

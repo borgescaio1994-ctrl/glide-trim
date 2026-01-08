@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "494476746270",
+    "project_id": "barberpro-7082a",
+    "storage_bucket": "barberpro-7082a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:494476746270:android:15d966bb908bce49ced80f",
+        "android_client_info": {
+          "package_name": "com.barberbuddy.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWw6O652pEA0picB0a_oJc4DekIgSvmkM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

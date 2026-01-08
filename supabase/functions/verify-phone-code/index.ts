@@ -12,7 +12,6 @@ interface VerifyCodeRequest {
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -27,64 +26,90 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Format phone number
+    // Formatação do telefone para bater com o que o n8n salva (ex: 5511...)
     let formattedPhone = phone.replace(/\D/g, "");
     if (!formattedPhone.startsWith("55")) {
       formattedPhone = "55" + formattedPhone;
     }
+    // Adiciona o sufixo do WhatsApp caso não tenha, pois o n8n salva com @c.us
+    const phoneWithSuffix = formattedPhone.includes("@c.us") ? formattedPhone : `${formattedPhone}@c.us`;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Find verification token
-    const { data: verification, error: fetchError } = await supabase
-      .from("phone_verifications")
+    // 1. BUSCA O CÓDIGO NA TABELA APPOINTMENTS (Onde o n8n salvou)
+    const { data: appointment, error: fetchError } = await supabase
+      .from("appointments")
       .select("*")
-      .eq("phone_number", formattedPhone)
-      .eq("token", code)
-      .is("verified_at", null)
+      .eq("phone_number", phoneWithSuffix) // Campo do n8n
+      .eq("verification_code", code)      // Campo do n8n
+      .eq("is_verified", false)           // Apenas códigos ainda não usados
       .single();
 
-    if (fetchError || !verification) {
-      console.log("Verification not found:", fetchError);
+    if (fetchError || !appointment) {
+      console.log("Verificação não encontrada ou código incorreto:", fetchError);
       return new Response(
-        JSON.stringify({ error: "Código inválido ou expirado" }),
+        JSON.stringify({ error: "Código inválido ou já utilizado" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Check if token is expired
-    const expiresAt = new Date(verification.expires_at);
-    if (expiresAt < new Date()) {
-      return new Response(
-        JSON.stringify({ error: "Código expirado. Solicite um novo código." }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    // Mark as verified
+    // 2. MARCA COMO VERIFICADO NA TABELA APPOINTMENTS
     const { error: updateError } = await supabase
-      .from("phone_verifications")
-      .update({ verified_at: new Date().toISOString() })
-      .eq("id", verification.id);
+      .from("appointments")
+      .update({ is_verified: true }) // Atualiza o campo que o n8n criou
+      .eq("id", appointment.id);
 
     if (updateError) {
-      console.error("Error updating verification:", updateError);
+      console.error("Erro ao atualizar status de verificação:", updateError);
       return new Response(
-        JSON.stringify({ error: "Erro ao verificar código" }),
+        JSON.stringify({ error: "Erro ao validar no banco de dados" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log("Phone verified successfully:", formattedPhone);
+    // 3. LÓGICA DE USUÁRIO (Sua lógica original mantida)
+    const { data: existingUser } = await supabase.auth.admin.listUsers();
+    const user = existingUser.users.find(u => u.phone === formattedPhone);
+
+    let userId: string;
+
+    if (user) {
+      userId = user.id;
+      console.log("Usuário já existe:", userId);
+    } else {
+      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+        phone: formattedPhone,
+        phone_confirm: true,
+      });
+
+      if (createError) {
+        console.error("Erro ao criar usuário:", createError);
+        return new Response(
+          JSON.stringify({ error: "Erro ao criar conta de usuário" }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      userId = newUser.user.id;
+      
+      // Criação do Perfil
+      await supabase.from("profiles").insert({
+        id: userId,
+        phone: formattedPhone,
+        full_name: "Cliente WhatsApp",
+        role: "client",
+      });
+    }
 
     return new Response(
-      JSON.stringify({ success: true, verified: true, phone: formattedPhone }),
+      JSON.stringify({ success: true, verified: true, phone: formattedPhone, user_id: userId }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
+
   } catch (error: any) {
-    console.error("Error in verify-phone-code function:", error);
+    console.error("Erro na Edge Function:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }

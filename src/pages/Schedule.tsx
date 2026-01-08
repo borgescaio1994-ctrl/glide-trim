@@ -24,6 +24,8 @@ interface ScheduleDay {
   day_of_week: number;
   start_time: string;
   end_time: string;
+  break_start?: string;
+  break_end?: string;
   is_active: boolean;
 }
 
@@ -35,6 +37,8 @@ export default function Schedule() {
       day_of_week: day.value,
       start_time: '09:00',
       end_time: '18:00',
+      break_start: '',
+      break_end: '',
       is_active: false,
     }))
   );
@@ -42,20 +46,30 @@ export default function Schedule() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    console.log('Schedule component re-rendered');
+  });
+
+  useEffect(() => {
+    console.log('Schedule useEffect triggered, profile.id:', profile?.id);
     if (profile?.id) {
       fetchSchedules();
     }
   }, [profile?.id]);
 
   const fetchSchedules = async () => {
+    console.log('fetchSchedules called for barber_id:', profile?.id);
     if (!profile?.id) return;
 
+    const startTime = Date.now();
     const { data, error } = await supabase
       .from('barber_schedules')
       .select('*')
       .eq('barber_id', profile.id);
+    const endTime = Date.now();
+    console.log('Supabase query took:', endTime - startTime, 'ms');
 
     if (data) {
+      console.log('Fetched schedules data:', data);
       const updatedSchedules = DAYS_OF_WEEK.map((day) => {
         const existing = data.find((s) => s.day_of_week === day.value);
         if (existing) {
@@ -64,6 +78,8 @@ export default function Schedule() {
             day_of_week: existing.day_of_week,
             start_time: existing.start_time.slice(0, 5),
             end_time: existing.end_time.slice(0, 5),
+            break_start: (existing as any).break_start?.slice(0, 5) || '',
+            break_end: (existing as any).break_end?.slice(0, 5) || '',
             is_active: existing.is_active,
           };
         }
@@ -71,10 +87,14 @@ export default function Schedule() {
           day_of_week: day.value,
           start_time: '09:00',
           end_time: '18:00',
+          break_start: '',
+          break_end: '',
           is_active: false,
         };
       });
       setSchedules(updatedSchedules);
+    } else if (error) {
+      console.error('Error fetching schedules:', error);
     }
     setLoading(false);
   };
@@ -101,6 +121,8 @@ export default function Schedule() {
             day_of_week: s.day_of_week,
             start_time: s.start_time,
             end_time: s.end_time,
+            break_start: s.break_start || null,
+            break_end: s.break_end || null,
             is_active: s.is_active,
           }))
         );
@@ -178,24 +200,46 @@ export default function Schedule() {
                 </div>
 
                 {schedule.is_active && (
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Início</Label>
-                      <Input
-                        type="time"
-                        value={schedule.start_time}
-                        onChange={(e) => updateSchedule(index, 'start_time', e.target.value)}
-                        className="mt-1 bg-input border-border text-sm h-10"
-                      />
+                  <div className="space-y-3 mt-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Início</Label>
+                        <Input
+                          type="time"
+                          value={schedule.start_time}
+                          onChange={(e) => updateSchedule(index, 'start_time', e.target.value)}
+                          className="mt-1 bg-input border-border text-sm h-10"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Fim</Label>
+                        <Input
+                          type="time"
+                          value={schedule.end_time}
+                          onChange={(e) => updateSchedule(index, 'end_time', e.target.value)}
+                          className="mt-1 bg-input border-border text-sm h-10"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Fim</Label>
-                      <Input
-                        type="time"
-                        value={schedule.end_time}
-                        onChange={(e) => updateSchedule(index, 'end_time', e.target.value)}
-                        className="mt-1 bg-input border-border text-sm h-10"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Pausa Início (opcional)</Label>
+                        <Input
+                          type="time"
+                          value={schedule.break_start}
+                          onChange={(e) => updateSchedule(index, 'break_start', e.target.value)}
+                          className="mt-1 bg-input border-border text-sm h-10"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Pausa Fim (opcional)</Label>
+                        <Input
+                          type="time"
+                          value={schedule.break_end}
+                          onChange={(e) => updateSchedule(index, 'break_end', e.target.value)}
+                          className="mt-1 bg-input border-border text-sm h-10"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}

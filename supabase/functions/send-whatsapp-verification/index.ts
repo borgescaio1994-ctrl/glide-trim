@@ -71,10 +71,10 @@ const handler = async (req: Request): Promise<Response> => {
     const twilioFrom = Deno.env.get("TWILIO_WHATSAPP_FROM");
 
     if (!accountSid || !authToken || !twilioFrom) {
-      console.error("Twilio credentials not configured");
+      console.error("Twilio credentials not configured - returning token for development");
       return new Response(
-        JSON.stringify({ error: "Serviço de SMS não configurado", token: token }), // Return token for development
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ success: true, message: "Código gerado (desenvolvimento)", token: token }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 

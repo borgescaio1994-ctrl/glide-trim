@@ -7,6 +7,10 @@ import { Crown, DollarSign, TrendingUp, Users, Scissors, Calendar } from 'lucide
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
+interface HomeSettings {
+  title: string;
+}
+
 export default function AdminHome() {
   const { profile } = useAuth();
   const navigate = useNavigate();
@@ -18,10 +22,28 @@ export default function AdminHome() {
     todayAppointments: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [homeSettings, setHomeSettings] = useState<HomeSettings | null>(null);
 
   useEffect(() => {
     fetchStats();
+    fetchHomeSettings();
   }, []);
+
+  const fetchHomeSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('home_settings')
+        .select('title')
+        .limit(1)
+        .single();
+
+      if (data) {
+        setHomeSettings(data);
+      }
+    } catch (error) {
+      console.error('Error fetching home settings:', error);
+    }
+  };
 
   const fetchStats = async () => {
     const today = new Date();
@@ -99,7 +121,9 @@ export default function AdminHome() {
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Scissors className="w-4 h-4 text-primary" />
             </div>
-            <span className="text-lg font-semibold text-foreground">BarberPro</span>
+            <span className="text-lg font-semibold text-foreground">
+              {homeSettings?.title || 'BarberPro'}
+            </span>
           </button>
 
           <Button

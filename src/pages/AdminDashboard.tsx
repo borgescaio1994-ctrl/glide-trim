@@ -2,14 +2,16 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { 
-  ArrowLeft, 
-  DollarSign, 
-  TrendingUp, 
-  Users, 
-  Scissors, 
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import {
+  ArrowLeft,
+  DollarSign,
+  TrendingUp,
+  Users,
+  Scissors,
   Trash2,
   PieChart,
   BarChart3,
@@ -17,7 +19,8 @@ import {
   AlertCircle,
   Settings,
   UserPlus,
-  X
+  X,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +41,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -90,10 +94,66 @@ export default function AdminDashboard() {
   const [showAddBarber, setShowAddBarber] = useState(false);
   const [newBarber, setNewBarber] = useState({ full_name: '', email: '', phone: '' });
   const [addingBarber, setAddingBarber] = useState(false);
+  const [showReports, setShowReports] = useState(false);
+  const [completedAndCancelledAppointments, setCompletedAndCancelledAppointments] = useState<any[]>([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [reportBarber, setReportBarber] = useState<string>('all');
+  const [reportStartDate, setReportStartDate] = useState<string>('');
+  const [reportEndDate, setReportEndDate] = useState<string>('');
 
   useEffect(() => {
     fetchData();
   }, [period]);
+
+  const fetchCompletedAppointments = async () => {
+    setLoadingReports(true);
+
+    let query = supabase
+      .from('appointments')
+      .select(`
+        *,
+        client:profiles!appointments_client_id_fkey(full_name),
+        barber:profiles!appointments_barber_id_fkey(full_name),
+        service:services(name, price, duration_minutes)
+      `)
+      .in('status', ['completed', 'cancelled'])
+      .order('completed_at', { ascending: false, nullsFirst: false })
+      .order('cancelled_at', { ascending: false, nullsFirst: false });
+
+    if (reportBarber !== 'all') {
+      query = query.eq('barber_id', reportBarber);
+    }
+
+    if (reportStartDate) {
+      query = query.gte('completed_at', reportStartDate + 'T00:00:00.000Z');
+    }
+
+    if (reportEndDate) {
+      query = query.lt('completed_at', reportEndDate + 'T23:59:59.999Z');
+    } else if (!reportStartDate) {
+      // If no dates, default to current period
+      const today = new Date();
+      let startDate: Date;
+      let endDate: Date;
+
+      if (period === 'week') {
+        startDate = startOfWeek(today, { locale: ptBR });
+        endDate = endOfWeek(today, { locale: ptBR });
+      } else {
+        startDate = startOfMonth(today);
+        endDate = endOfMonth(today);
+      }
+
+      query = query.gte('completed_at', startDate.toISOString()).lt('completed_at', endDate.toISOString());
+    }
+
+    const { data } = await query;
+
+    if (data) {
+      setCompletedAndCancelledAppointments(data);
+    }
+    setLoadingReports(false);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -138,33 +198,26 @@ export default function AdminDashboard() {
     setAddingBarber(true);
 
     try {
-      // Call edge function to create the barber account
-      const { data, error } = await supabase.functions.invoke('create-barber', {
-        body: {
-          email: newBarber.email,
-          fullName: newBarber.full_name,
+      // Insert into registered_barbers table
+      const { error } = await supabase
+        .from('registered_barbers')
+        .insert({
+          email: newBarber.email.toLowerCase().trim(),
+          full_name: newBarber.full_name,
           phone: newBarber.phone || null,
-        },
-      });
+        });
 
       if (error) {
-        console.error('Error from edge function:', error);
-        toast.error('Erro ao criar conta do barbeiro');
+        console.error('Error inserting barber:', error);
+        toast.error('Erro ao cadastrar barbeiro');
         setAddingBarber(false);
         return;
       }
 
-      if (data?.error) {
-        toast.error(data.error);
-        setAddingBarber(false);
-        return;
-      }
-
-      toast.success('Barbeiro criado com sucesso! Ele pode fazer login com a senha padrão: BARBEIRO2026');
+      toast.success('Barbeiro cadastrado com sucesso! Peça para ele fazer cadastro no app com este email e senha: BARBEIRO2026');
       setNewBarber({ full_name: '', email: '', phone: '' });
       setShowAddBarber(false);
       fetchRegisteredBarbers();
-      fetchBarbers();
     } catch (error: any) {
       console.error('Error adding barber:', error);
       toast.error('Erro ao cadastrar barbeiro');
@@ -302,38 +355,65 @@ export default function AdminDashboard() {
     setDeletingBarber(barberId);
 
     try {
+      console.log('Starting barber deletion for ID:', barberId);
+
       // Delete appointments first
-      await supabase
+      console.log('Deleting appointments...');
+      const { error: aptError } = await supabase
         .from('appointments')
         .delete()
         .eq('barber_id', barberId);
+      if (aptError) {
+        console.error('Error deleting appointments:', aptError);
+        throw aptError;
+      }
 
       // Delete services
-      await supabase
+      console.log('Deleting services...');
+      const { error: svcError } = await supabase
         .from('services')
         .delete()
         .eq('barber_id', barberId);
+      if (svcError) {
+        console.error('Error deleting services:', svcError);
+        throw svcError;
+      }
 
       // Delete schedules
-      await supabase
+      console.log('Deleting schedules...');
+      const { error: schError } = await supabase
         .from('barber_schedules')
         .delete()
         .eq('barber_id', barberId);
+      if (schError) {
+        console.error('Error deleting schedules:', schError);
+        throw schError;
+      }
 
       // Delete gallery
-      await supabase
+      console.log('Deleting gallery...');
+      const { error: galError } = await supabase
         .from('barber_gallery')
         .delete()
         .eq('barber_id', barberId);
+      if (galError) {
+        console.error('Error deleting gallery:', galError);
+        throw galError;
+      }
 
       // Delete profile
+      console.log('Deleting profile...');
       const { error } = await supabase
         .from('profiles')
         .delete()
         .eq('id', barberId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error deleting profile:', error);
+        throw error;
+      }
 
+      console.log('Barber deletion completed successfully');
       toast.success('Barbeiro removido com sucesso');
       fetchBarbers();
     } catch (error: any) {
@@ -349,6 +429,39 @@ export default function AdminDashboard() {
       style: 'currency',
       currency: 'BRL',
     }).format(price);
+  };
+
+  const generatePDF = async () => {
+    const element = document.getElementById('reports-content');
+    if (!element) return;
+
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+
+    const imgWidth = 210;
+    const pageHeight = 295;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    let heightLeft = imgHeight;
+
+    let position = 0;
+
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft >= 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    pdf.save('relatorio-procedimentos.pdf');
   };
 
   const pieColors = [
@@ -375,6 +488,17 @@ export default function AdminDashboard() {
             <Crown className="w-6 h-6 text-primary" />
             <h1 className="text-2xl font-bold text-foreground">Painel Admin</h1>
           </div>
+          <Button
+            onClick={() => {
+              setShowReports(true);
+              fetchCompletedAppointments();
+            }}
+            variant="outline"
+            className="gap-2 border-primary/50 text-primary hover:bg-primary/10"
+          >
+            <FileText className="w-4 h-4" />
+            Relatórios
+          </Button>
         </div>
 
         {/* Period Tabs */}
@@ -755,7 +879,140 @@ export default function AdminDashboard() {
             ))}
           </div>
         )}
+
       </div>
+
+      {/* Reports Dialog */}
+      <Dialog open={showReports} onOpenChange={setShowReports}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Relatório de Procedimentos Concluídos e Cancelados
+            </DialogTitle>
+            <DialogDescription>
+              Detalhes de todos os procedimentos finalizados. Use os filtros abaixo para personalizar a visualização.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Filters */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="report-barber">Barbeiro</Label>
+                <select
+                  id="report-barber"
+                  value={reportBarber}
+                  onChange={(e) => setReportBarber(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-border rounded-md bg-background"
+                >
+                  <option value="all">Todos os barbeiros</option>
+                  {barbers.map((barber) => (
+                    <option key={barber.id} value={barber.id}>
+                      {barber.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="report-start">Data Inicial</Label>
+                <Input
+                  id="report-start"
+                  type="date"
+                  value={reportStartDate}
+                  onChange={(e) => setReportStartDate(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="report-end">Data Final</Label>
+                <Input
+                  id="report-end"
+                  type="date"
+                  value={reportEndDate}
+                  onChange={(e) => setReportEndDate(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <Button onClick={fetchCompletedAppointments} className="w-full md:w-auto">
+              Aplicar Filtros
+            </Button>
+          </div>
+
+          {loadingReports ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="bg-card rounded-xl p-4 animate-pulse border border-border/50">
+                  <div className="h-4 bg-muted rounded w-32 mb-2" />
+                  <div className="h-3 bg-muted rounded w-48" />
+                </div>
+              ))}
+            </div>
+          ) : completedAndCancelledAppointments.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+              <p className="text-muted-foreground">Nenhum procedimento concluído no período</p>
+            </div>
+          ) : (
+            <div id="reports-content" className="space-y-3">
+              {completedAndCancelledAppointments.map((appointment) => (
+                <div key={appointment.id} className="bg-card rounded-xl p-4 border border-border/50">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Scissors className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">{(appointment.service as any)?.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Cliente: {(appointment.client as any)?.full_name || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-foreground">
+                          {formatPrice(Number((appointment.service as any)?.price || 0))}
+                        </p>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          appointment.status === 'completed'
+                            ? 'bg-green-500/10 text-green-500'
+                            : 'bg-red-500/10 text-red-500'
+                        }`}>
+                          {appointment.status === 'completed' ? 'Concluído' : 'Cancelado'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {appointment.status === 'completed'
+                          ? format(parseISO(appointment.completed_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                          : format(parseISO(appointment.cancelled_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>Barbeiro: {(appointment.barber as any)?.full_name}</span>
+                    <span>Duração: {(appointment.service as any)?.duration_minutes} min</span>
+                  </div>
+
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Data do agendamento: {format(parseISO(appointment.appointment_date), "dd/MM/yyyy", { locale: ptBR })} às {appointment.start_time.slice(0, 5)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+        <DialogFooter>
+          {completedAndCancelledAppointments.length > 0 && (
+            <Button onClick={generatePDF} variant="outline" className="gap-2">
+              <FileText className="w-4 h-4" />
+              Download PDF
+            </Button>
+          )}
+        </DialogFooter>
+      </Dialog>
     </div>
   );
 }

@@ -29,12 +29,17 @@ interface BarberDashboardProps {
   isAdmin?: boolean;
 }
 
+interface HomeSettings {
+  title: string;
+}
+
 export default function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [homeSettings, setHomeSettings] = useState<HomeSettings | null>(null);
   const [stats, setStats] = useState({
     todayEarnings: 0,
     weekEarnings: 0,
@@ -47,7 +52,24 @@ export default function BarberDashboard({ isAdmin = false }: BarberDashboardProp
       fetchAppointments();
       fetchStats();
     }
+    fetchHomeSettings();
   }, [profile?.id, selectedDate]);
+
+  const fetchHomeSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('home_settings')
+        .select('title')
+        .limit(1)
+        .single();
+
+      if (data) {
+        setHomeSettings(data);
+      }
+    } catch (error) {
+      console.error('Error fetching home settings:', error);
+    }
+  };
 
   const fetchAppointments = async () => {
     if (!profile?.id) return;
@@ -94,7 +116,8 @@ export default function BarberDashboard({ isAdmin = false }: BarberDashboardProp
       .from('appointments')
       .select('service:services(price)')
       .eq('barber_id', profile.id)
-      .eq('appointment_date', todayStr)
+      .gte('completed_at', startOfDay(today).toISOString())
+      .lt('completed_at', endOfDay(today).toISOString())
       .eq('status', 'completed');
 
     // Week earnings
@@ -102,8 +125,8 @@ export default function BarberDashboard({ isAdmin = false }: BarberDashboardProp
       .from('appointments')
       .select('service:services(price)')
       .eq('barber_id', profile.id)
-      .gte('appointment_date', weekStart)
-      .lte('appointment_date', weekEnd)
+      .gte('completed_at', startOfWeek(today, { locale: ptBR }).toISOString())
+      .lt('completed_at', endOfWeek(today, { locale: ptBR }).toISOString())
       .eq('status', 'completed');
 
     // Month earnings
@@ -111,8 +134,8 @@ export default function BarberDashboard({ isAdmin = false }: BarberDashboardProp
       .from('appointments')
       .select('service:services(price)')
       .eq('barber_id', profile.id)
-      .gte('appointment_date', monthStart)
-      .lte('appointment_date', monthEnd)
+      .gte('completed_at', startOfMonth(today).toISOString())
+      .lt('completed_at', endOfMonth(today).toISOString())
       .eq('status', 'completed');
 
     const sumPrices = (data: any[]) =>
@@ -127,11 +150,18 @@ export default function BarberDashboard({ isAdmin = false }: BarberDashboardProp
   };
 
   const updateAppointmentStatus = async (id: string, status: 'completed' | 'cancelled') => {
+    const updateData: any = { status };
+    if (status === 'completed') {
+      updateData.completed_at = new Date().toISOString();
+    } else if (status === 'cancelled') {
+      updateData.cancelled_at = new Date().toISOString();
+    }
+
     await supabase
       .from('appointments')
-      .update({ status })
+      .update(updateData)
       .eq('id', id);
-    
+
     fetchAppointments();
     fetchStats();
   };
@@ -187,7 +217,9 @@ export default function BarberDashboard({ isAdmin = false }: BarberDashboardProp
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Scissors className="w-4 h-4 text-primary" />
             </div>
-            <span className="text-lg font-semibold text-foreground">BarberPro</span>
+            <span className="text-lg font-semibold text-foreground">
+              {homeSettings?.title || 'BarberPro'}
+            </span>
           </button>
 
           {isAdmin && (

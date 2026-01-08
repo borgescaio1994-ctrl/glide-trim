@@ -1,0 +1,306 @@
+{
+  "name": "Workflow N8N para Verificação WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "webhook-test/whatsapp",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "id": "1"
+    },
+    {
+      "parameters": {
+        "functionCode": "const code = Math.floor(100000 + Math.random() * 900000).toString();\nconst expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();\nreturn { code, expiresAt };"
+      },
+      "name": "Function Gerar Código",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "id": "2"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "phone_verifications",
+        "columns": "phone_number,token,expires_at",
+        "values": "={{ $json.phone }},={{ $node[\"Function Gerar Código\"].json.code }},={{ $node[\"Function Gerar Código\"].json.expiresAt }}"
+      },
+      "name": "Supabase Insert",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "id": "3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.100.23:5678/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "Content-Type": "application/json"
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "chatId": "={{ $json.phone }}@c.us",
+          "text": "Seu código de verificação é: {{ $node[\"Function Gerar Código\"].json.code }}\\n\\nDigite este código para confirmar seu número."
+        }
+      },
+      "name": "HTTP Request Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "id": "4"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{ \"success\": true, \"message\": \"Código enviado\" }",
+        "responseCode": 200
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 300],
+      "id": "5"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 30
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 600],
+      "id": "6"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.100.23:5678/api/messages?chatId=all&limit=10&downloadMedia=false"
+      },
+      "name": "HTTP Request Buscar Mensagens",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [460, 600],
+      "id": "7"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Filtrar mensagens recebidas recentes (últimos 30s), não enviadas pelo bot\\nconst now = Date.now();\\nconst thirtySecondsAgo = now - 30000;\\nreturn items[0].json.filter(msg => {\\n  const msgTime = new Date(msg.timestamp * 1000).getTime();\\n  return msgTime > thirtySecondsAgo && !msg.fromMe;\\n});"
+      },
+      "name": "Function Filtrar Mensagens",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 600],
+      "id": "8"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "phone_verifications",
+        "conditions": "verified_at IS NULL AND expires_at > NOW()"
+      },
+      "name": "Supabase Select Verificações",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [900, 600],
+      "id": "9"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Verificar se mensagem contém código válido\\nconst messages = items[0].json;\\nconst verifications = items[1].json;\\nconst validCodes = [];\\n\\nmessages.forEach(msg => {\\n  const text = msg.body;\\n  if (/^\\d{6}$/.test(text)) {\\n    const verification = verifications.find(v => v.token === text && v.phone_number === msg.author);\\n    if (verification) {\\n      validCodes.push({ verification, message: msg });\\n    }\\n  }\\n});\\n\\nreturn validCodes;"
+      },
+      "name": "Function Validar Código",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 600],
+      "id": "10"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "phone_verifications",
+        "updateKey": "id",
+        "updateFields": "verified_at",
+        "updateValues": "NOW()"
+      },
+      "name": "Supabase Update Verificação",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1340, 600],
+      "id": "11"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "profiles",
+        "updateKey": "id",
+        "updateFields": "phone_number,is_verified",
+        "updateValues": "={{ $json.verification.phone_number }},true"
+      },
+      "name": "Supabase Update Perfil",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1560, 600],
+      "id": "12"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.100.23:5678/api/sendText",
+        "sendBody": true,
+        "bodyParameters": {
+          "chatId": "={{ $json.verification.phone_number }}@c.us",
+          "text": "✅ Número verificado com sucesso! Seu agendamento foi confirmado."
+        }
+      },
+      "name": "HTTP Request Confirmação WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1780, 600],
+      "id": "13"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Function Gerar Código",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Function Gerar Código": {
+      "main": [
+        [
+          {
+            "node": "Supabase Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Insert": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request Enviar WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request Buscar Mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request Buscar Mensagens": {
+      "main": [
+        [
+          {
+            "node": "Function Filtrar Mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Function Filtrar Mensagens": {
+      "main": [
+        [
+          {
+            "node": "Supabase Select Verificações",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Select Verificações": {
+      "main": [
+        [
+          {
+            "node": "Function Validar Código",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Function Validar Código": {
+      "main": [
+        [
+          {
+            "node": "Supabase Update Verificação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Update Verificação": {
+      "main": [
+        [
+          {
+            "node": "Supabase Update Perfil",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Update Perfil": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request Confirmação WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "staticData": null,
+  "meta": {},
+  "pinData": {},
+  "versionId": null
+}

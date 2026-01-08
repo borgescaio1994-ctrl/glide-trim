@@ -5,6 +5,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { Search, Scissors, LogIn } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 interface Barber {
   id: string;
@@ -193,6 +195,13 @@ export default function ClientHome() {
           )}
         </section>
       </div>
+
+      {/* Footer */}
+      <footer className="px-5 py-4 bg-muted/50 border-t border-border/50">
+        <p className="text-center text-xs text-muted-foreground">
+          Criado por Caio Borges.
+        </p>
+      </footer>
     </div>
   );
 }
