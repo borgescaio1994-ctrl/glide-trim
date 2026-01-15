@@ -50,14 +50,16 @@ export default function BookAppointment() {
   const [confirming, setConfirming] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
 
-  // Phone verification states for logged in users without verified phone
+  // Phone verification states
   const [showPhoneVerification, setShowPhoneVerification] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [verifyingPhone, setVerifyingPhone] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
 
   const fetchAppointments = async () => {
     try {
-      // Fetch existing appointments for next 30 days
       const startDate = format(new Date(), 'yyyy-MM-dd');
       const endDate = format(addDays(new Date(), 30), 'yyyy-MM-dd');
 
@@ -94,7 +96,6 @@ export default function BookAppointment() {
         table: 'appointments',
         filter: `barber_id=eq.${barberId}`,
       }, () => {
-        // Refetch appointments when a new one is inserted
         fetchAppointments();
       })
       .subscribe();
@@ -106,7 +107,6 @@ export default function BookAppointment() {
 
   const fetchData = async () => {
     try {
-      // Fetch service
       const { data: serviceData } = await supabase
         .from('services')
         .select('*')
@@ -117,7 +117,6 @@ export default function BookAppointment() {
         setService(serviceData);
       }
 
-      // Fetch barber name and phone
       const { data: barberData } = await supabase
         .from('profiles')
         .select('full_name, phone')
@@ -128,7 +127,6 @@ export default function BookAppointment() {
         setBarberName(barberData.full_name);
       }
 
-      // Fetch barber schedules
       const { data: schedulesData } = await supabase
         .from('barber_schedules')
         .select('*')
@@ -182,7 +180,6 @@ export default function BookAppointment() {
     const startMinutes = startHour * 60 + startMin;
     const endMinutes = endHour * 60 + endMin;
 
-    // Get appointments for this date
     const dayAppointments = appointments.filter((a) => a.appointment_date === dateStr);
 
     for (let time = startMinutes; time + service.duration_minutes <= endMinutes; time += 30) {
@@ -192,20 +189,17 @@ export default function BookAppointment() {
       const slotEndTime = time + service.duration_minutes;
       const slotEnd = `${Math.floor(slotEndTime / 60).toString().padStart(2, '0')}:${(slotEndTime % 60).toString().padStart(2, '0')}`;
 
-      // Check if slot conflicts with any existing appointment
       const hasConflict = dayAppointments.some((apt) => {
         const aptStart = apt.start_time.slice(0, 5);
         const aptEnd = apt.end_time.slice(0, 5);
         return (slotStart < aptEnd && slotEnd > aptStart);
       });
 
-      // Check if slot is in the past
       const now = new Date();
       const slotDate = parseISO(dateStr);
       slotDate.setHours(hours, mins, 0, 0);
       const isInPast = isBefore(slotDate, now);
 
-      // Check if slot overlaps with break time
       let overlapsBreak = false;
       if (schedule.break_start && schedule.break_end) {
         const breakStart = schedule.break_start.slice(0, 5);
@@ -224,10 +218,8 @@ export default function BookAppointment() {
   };
 
   const formatPhoneNumber = (value: string) => {
-    // Remove all non-digits
     const digits = value.replace(/\D/g, '');
     
-    // Format as (XX) XXXXX-XXXX
     if (digits.length <= 2) {
       return `(${digits}`;
     } else if (digits.length <= 7) {
@@ -244,7 +236,7 @@ export default function BookAppointment() {
     }
   };
 
-  const handleStartPhoneVerification = async () => {
+  const handleSendCode = async () => {
     const digits = phoneNumber.replace(/\D/g, '');
     if (digits.length < 10) {
       toast.error('Digite um número de telefone válido');
@@ -254,49 +246,93 @@ export default function BookAppointment() {
     setVerifyingPhone(true);
 
     try {
-      // Send phone to Waha + N8N for verification
-      const response = await fetch('http://localhost:5678/webhook-test/whatsapp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: digits,
-          user_id: user?.id,
-          action: 'start_verification'
-        })
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-verification', {
+        body: { phone: digits }
       });
 
-      if (response.ok) {
-        toast.success('Código enviado via WhatsApp! Aguarde a verificação.');
-        // Close modal and wait for verification
-        setShowPhoneVerification(false);
-      } else {
-        toast.error('Erro ao iniciar verificação. Tente novamente.');
+      if (error) {
+        console.error('Error sending verification:', error);
+        toast.error('Erro ao enviar código. Tente novamente.');
+        return;
       }
-    } catch (error: any) {
-      console.error('Error starting phone verification:', error);
-      toast.error('Erro ao iniciar verificação. Tente novamente.');
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      setCodeSent(true);
+      toast.success('Código enviado via WhatsApp!');
+    } catch (error) {
+      console.error('Error sending verification:', error);
+      toast.error('Erro ao enviar código. Tente novamente.');
     } finally {
       setVerifyingPhone(false);
     }
   };
 
+  const handleVerifyCode = async () => {
+    if (verificationCode.length !== 6) {
+      toast.error('Digite o código de 6 dígitos');
+      return;
+    }
+
+    setVerifyingCode(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-phone-code', {
+        body: { 
+          phone: phoneNumber.replace(/\D/g, ''),
+          code: verificationCode 
+        }
+      });
+
+      if (error) {
+        console.error('Error verifying code:', error);
+        toast.error('Erro ao verificar código');
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      if (data?.verified) {
+        toast.success('Número verificado com sucesso!');
+        
+        // Update profile with phone number if user is logged in
+        if (user && profile?.id) {
+          await supabase
+            .from('profiles')
+            .update({ phone: phoneNumber.replace(/\D/g, '') })
+            .eq('id', profile.id);
+        }
+        
+        setShowPhoneVerification(false);
+        
+        // Now proceed to book
+        handleBook();
+      }
+    } catch (error) {
+      console.error('Error verifying code:', error);
+      toast.error('Erro ao verificar código');
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
   const handleConfirmClick = () => {
-    if (confirming) return; // Prevent multiple clicks
+    if (confirming) return;
 
     if (!user) {
-      // Redirect to login if not authenticated
       navigate('/auth');
       return;
     }
 
-    // Check if user has verified phone
     if (!profile?.phone) {
-      // Show phone verification option
       setShowPhoneVerification(true);
     } else {
-      // Proceed to booking
       handleBook();
     }
   };
@@ -307,7 +343,6 @@ export default function BookAppointment() {
     setBooking(true);
 
     try {
-      // Save phone number if not already saved
       if (!profile?.phone && phoneInput) {
         const { error: phoneError } = await supabase
           .from('profiles')
@@ -321,7 +356,6 @@ export default function BookAppointment() {
       const endMinutes = startMinutes + service.duration_minutes;
       const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
 
-      // Verificar se o horário ainda está disponível
       const { data: existingAppointment } = await supabase
         .from('appointments')
         .select('id')
@@ -348,7 +382,6 @@ export default function BookAppointment() {
 
       if (error) throw error;
 
-      // Send immediate push notification
       try {
         const { data: clientProfile } = await (supabase
           .from('profiles')
@@ -376,17 +409,13 @@ export default function BookAppointment() {
         } else {
           toast.success('Agendamento realizado com sucesso!');
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error('Error sending push notification:', error);
         toast.success('Agendamento realizado com sucesso!');
       }
 
-      // TODO: Schedule 2-hour reminder notification
-      // This should be implemented with a Supabase cron function or scheduled job
-      // that checks appointments 2 hours before and sends push notifications
-
       navigate('/appointments');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error booking:', error);
       toast.error('Erro ao realizar agendamento');
     } finally {
@@ -405,7 +434,6 @@ export default function BookAppointment() {
       const endMinutes = startMinutes + service.duration_minutes;
       const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
 
-      // Verificar se o horário ainda está disponível
       const { data: existingAppointment } = await supabase
         .from('appointments')
         .select('id')
@@ -420,7 +448,6 @@ export default function BookAppointment() {
         return;
       }
 
-      // Create the appointment with the new user
       const { data, error } = await supabase.from('appointments').insert({
         client_id: userId,
         barber_id: barberId,
@@ -435,7 +462,6 @@ export default function BookAppointment() {
 
       toast.success('Agendamento confirmado! Você receberá uma confirmação no WhatsApp.');
 
-      // Schedule local notification
       if (Capacitor.isNativePlatform()) {
         await LocalNotifications.schedule({
           notifications: [
@@ -450,7 +476,7 @@ export default function BookAppointment() {
       }
 
       navigate('/');
-    } catch (error: any) {
+    } catch (error) {
       toast.error('Erro ao realizar agendamento');
       console.error(error);
     } finally {
@@ -476,14 +502,18 @@ export default function BookAppointment() {
     );
   }
 
-  // Phone verification modal/flow for logged in users
+  // Phone verification modal
   if (showPhoneVerification && user) {
     return (
       <div className="min-h-screen bg-background">
         <header className="px-5 pt-12 pb-6">
           <div className="flex items-center gap-4 mb-6">
             <button
-              onClick={() => setShowPhoneVerification(false)}
+              onClick={() => {
+                setShowPhoneVerification(false);
+                setCodeSent(false);
+                setVerificationCode('');
+              }}
               className="p-2 hover:bg-muted rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5 text-foreground" />
@@ -493,7 +523,6 @@ export default function BookAppointment() {
         </header>
 
         <div className="px-5">
-          {/* Appointment Summary */}
           {service && (
             <div className="bg-card rounded-2xl p-4 border border-border/50 mb-6">
               <div className="flex items-center gap-4">
@@ -523,50 +552,97 @@ export default function BookAppointment() {
               <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                 <MessageCircle className="w-8 h-8 text-primary" />
               </div>
-              <h2 className="text-xl font-semibold text-foreground mb-2">Verificar WhatsApp</h2>
+              <h2 className="text-xl font-semibold text-foreground mb-2">
+                {codeSent ? 'Digite o código' : 'Verificar WhatsApp'}
+              </h2>
               <p className="text-muted-foreground text-sm">
-                Digite seu número do WhatsApp para receber confirmações e lembretes de agendamento
+                {codeSent 
+                  ? 'Insira o código de 6 dígitos enviado para seu WhatsApp'
+                  : 'Digite seu número do WhatsApp para receber confirmações e lembretes'
+                }
               </p>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Número do WhatsApp</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  type="tel"
-                  placeholder="(11) 99999-9999"
-                  value={phoneNumber}
-                  onChange={handlePhoneChange}
-                  className="pl-10 h-12 text-lg"
-                />
-              </div>
-            </div>
+            {!codeSent ? (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Número do WhatsApp</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      type="tel"
+                      placeholder="(11) 99999-9999"
+                      value={phoneNumber}
+                      onChange={handlePhoneChange}
+                      className="pl-10 h-12 text-lg"
+                    />
+                  </div>
+                </div>
 
-            <div className="space-y-3">
-              <Button
-                onClick={handleStartPhoneVerification}
-                disabled={verifyingPhone || phoneNumber.replace(/\D/g, '').length < 10}
-                className="w-full h-12"
-              >
-                {verifyingPhone ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <MessageCircle className="w-5 h-5 mr-2" />
-                    Verificar WhatsApp
-                  </>
-                )}
-              </Button>
+                <Button
+                  onClick={handleSendCode}
+                  disabled={verifyingPhone || phoneNumber.replace(/\D/g, '').length < 10}
+                  className="w-full h-12"
+                >
+                  {verifyingPhone ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <MessageCircle className="w-5 h-5 mr-2" />
+                      Enviar código
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Código de verificação</label>
+                  <Input
+                    type="text"
+                    placeholder="000000"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="h-12 text-lg text-center tracking-widest font-mono"
+                    maxLength={6}
+                  />
+                </div>
 
-              <Button
-                onClick={() => setShowPhoneVerification(false)}
-                variant="outline"
-                className="w-full h-12"
-              >
-                Pular verificação
-              </Button>
-            </div>
+                <Button
+                  onClick={handleVerifyCode}
+                  disabled={verifyingCode || verificationCode.length !== 6}
+                  className="w-full h-12"
+                >
+                  {verifyingCode ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Check className="w-5 h-5 mr-2" />
+                      Verificar e agendar
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  onClick={() => {
+                    setCodeSent(false);
+                    setVerificationCode('');
+                  }}
+                  variant="ghost"
+                  className="w-full"
+                >
+                  Enviar novo código
+                </Button>
+              </>
+            )}
+
+            <Button
+              onClick={() => setShowPhoneVerification(false)}
+              variant="outline"
+              className="w-full h-12"
+            >
+              Cancelar
+            </Button>
           </div>
         </div>
       </div>
@@ -575,7 +651,6 @@ export default function BookAppointment() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="px-5 pt-12 pb-6">
         <div className="flex items-center gap-4 mb-6">
           <button
@@ -587,7 +662,6 @@ export default function BookAppointment() {
           <h1 className="text-2xl font-bold text-foreground">Agendar</h1>
         </div>
 
-        {/* Service Card */}
         {service && (
           <div className="bg-card rounded-2xl p-4 border border-border/50">
             <div className="flex items-center gap-4">
@@ -613,7 +687,6 @@ export default function BookAppointment() {
         )}
       </header>
 
-      {/* Date Selection */}
       <div className="px-5 mb-6">
         <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
           <Calendar className="w-4 h-4 text-primary" />
@@ -649,7 +722,6 @@ export default function BookAppointment() {
         </div>
       </div>
 
-      {/* Time Selection */}
       {selectedDate && (
         <div className="px-5 mb-6 animate-fade-in">
           <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
@@ -688,7 +760,6 @@ export default function BookAppointment() {
         </div>
       )}
 
-      {/* Confirm Button */}
       {selectedDate && selectedTime && (
         <div className="px-5 pb-8 animate-fade-in">
           <div className="bg-card rounded-2xl p-4 border border-border/50 mb-4">
@@ -705,7 +776,6 @@ export default function BookAppointment() {
             </div>
           </div>
 
-          {/* Phone Input for logged in users without phone */}
           {user && profile?.id && !profile?.phone && (
             <div className="bg-card rounded-2xl p-4 border border-border/50 mb-4">
               <h3 className="font-medium text-foreground mb-2">Número do WhatsApp</h3>

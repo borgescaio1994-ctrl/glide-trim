@@ -17,7 +17,7 @@ serve(async (req) => {
     const projectId = serviceAccount.project_id
 
     // Generate JWT
-    const header = { alg: "RS256", typ: "JWT" }
+    const header = { alg: "RS256" as const, typ: "JWT" }
     const payload = {
       iss: clientEmail,
       scope: "https://www.googleapis.com/auth/firebase.messaging",
@@ -59,7 +59,8 @@ serve(async (req) => {
     })
     const result = await fcmResponse.json()
     return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } })
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 })
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: errorMessage }), { status: 500 })
   }
 })

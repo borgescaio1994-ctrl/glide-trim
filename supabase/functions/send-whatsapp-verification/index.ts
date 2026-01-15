@@ -32,6 +32,8 @@ const handler = async (req: Request): Promise<Response> => {
       formattedPhone = "55" + formattedPhone;
     }
 
+    console.log("Processing verification for phone:", formattedPhone);
+
     // Generate 6-digit token
     const token = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -65,74 +67,55 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Send WhatsApp message using Twilio - SIMPLE TEXT MESSAGE (no templates)
-    const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
-    const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-    const twilioFrom = Deno.env.get("TWILIO_WHATSAPP_FROM");
+    console.log("Token saved to database, sending to n8n webhook...");
 
-    if (!accountSid || !authToken || !twilioFrom) {
-      console.error("Twilio credentials not configured - returning token for development");
+    // Send WhatsApp message via n8n webhook
+    const n8nWebhookUrl = Deno.env.get("N8N_WEBHOOK_URL");
+
+    if (!n8nWebhookUrl) {
+      console.error("N8N_WEBHOOK_URL not configured - returning token for development");
       return new Response(
         JSON.stringify({ success: true, message: "Código gerado (desenvolvimento)", token: token }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    
-    // Using simple Body message instead of ContentSid/Templates
-    const messageBody = `Seu código de verificação BarberPro é: ${token}. Válido por 10 minutos.`;
-    
-    const formData = new URLSearchParams();
-    formData.append("To", `whatsapp:+${formattedPhone}`);
-    formData.append("From", twilioFrom);
-    formData.append("Body", messageBody);
+    console.log("Calling n8n webhook:", n8nWebhookUrl);
 
-    console.log("Sending WhatsApp to:", `whatsapp:+${formattedPhone}`);
-    console.log("From:", twilioFrom);
-
-    const twilioResponse = await fetch(twilioUrl, {
+    const n8nResponse = await fetch(n8nWebhookUrl, {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Authorization": "Basic " + btoa(`${accountSid}:${authToken}`),
+        "Content-Type": "application/json",
       },
-      body: formData.toString(),
+      body: JSON.stringify({
+        phone: formattedPhone,
+        code: token,
+      }),
     });
 
-    const twilioResult = await twilioResponse.json();
-    console.log("Twilio response:", JSON.stringify(twilioResult));
+    const n8nResult = await n8nResponse.text();
+    console.log("n8n response status:", n8nResponse.status);
+    console.log("n8n response body:", n8nResult);
 
-    if (!twilioResponse.ok) {
-      console.error("Twilio error:", twilioResult);
-      
-      // Check for specific error codes
-      if (twilioResult.code === 63007) {
-        return new Response(
-          JSON.stringify({ 
-            error: "Para receber o código, primeiro envie uma mensagem para o número +14155238886 no WhatsApp com a palavra 'join'. Após isso, tente novamente.",
-            requiresOptIn: true 
-          }),
-          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-        );
-      }
-      
+    if (!n8nResponse.ok) {
+      console.error("n8n webhook error:", n8nResult);
       return new Response(
-        JSON.stringify({ error: "Erro ao enviar mensagem. Verifique o número.", twilioError: twilioResult }),
+        JSON.stringify({ error: "Erro ao enviar mensagem via WhatsApp" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log("WhatsApp message sent successfully:", twilioResult.sid);
+    console.log("WhatsApp verification message sent successfully via n8n");
 
     return new Response(
       JSON.stringify({ success: true, message: "Código enviado com sucesso" }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in send-whatsapp-verification function:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
