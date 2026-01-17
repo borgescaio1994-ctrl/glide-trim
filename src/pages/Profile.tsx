@@ -13,9 +13,17 @@ export default function Profile() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSignOut = async () => {
-    await signOut();
-    toast.success('Você saiu da conta');
-    navigate('/auth');
+    console.log('handleSignOut called');
+    try {
+      console.log('handleSignOut: calling signOut');
+      await signOut();
+      console.log('handleSignOut: signOut completed, showing toast and navigating');
+      toast.success('Você saiu da conta');
+      navigate('/auth');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast.error('Erro ao sair da conta');
+    }
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

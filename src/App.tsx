@@ -17,6 +17,7 @@ import BookAppointment from "./pages/BookAppointment";
 import BarberProfile from "./pages/BarberProfile";
 import Gallery from "./pages/Gallery";
 import AdminDashboard from "./pages/AdminDashboard";
+import VerifyOTP from "./pages/VerifyOTP";
 import NotFound from "./pages/NotFound";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
@@ -55,6 +56,7 @@ const App = () => {
                 <Route path="/barber/:barberId" element={<BarberProfile />} />
                 <Route path="/gallery" element={<Gallery />} />
                 <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/verify-otp" element={<VerifyOTP />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Layout>

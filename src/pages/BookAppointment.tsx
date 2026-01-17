@@ -251,17 +251,23 @@ export default function BookAppointment() {
       return;
     }
 
+    // Add Brazilian country code (55) if not present
+    const fullPhoneNumber = digits.startsWith('55') ? digits : `55${digits}`;
+
     setVerifyingPhone(true);
 
     try {
       // Send phone to Waha + N8N for verification
-      const response = await fetch('http://localhost:5678/webhook-test/whatsapp', {
+      // Substitua pela URL do seu webhook n8n (Production ou Test URL do nó Webhook)
+      const webhookUrl = 'http://192.168.100.23:5678/webhook/whatsapp';
+
+      const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          phone: digits,
+          phone: fullPhoneNumber,
           user_id: user?.id,
           action: 'start_verification'
         })

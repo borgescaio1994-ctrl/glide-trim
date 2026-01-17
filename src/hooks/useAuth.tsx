@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Profile {
@@ -200,7 +200,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    console.log('signOut called');
+    try {
+      const signOutPromise = supabase.auth.signOut();
+      const result = await Promise.race([
+        signOutPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('SignOut timeout')), 10000))
+      ]);
+      const { error } = result as { error: AuthError | null };
+      if (error) {
+        console.error('Error during signOut:', error);
+        throw error;
+      }
+      console.log('signOut successful');
+    } catch (error) {
+      console.error('SignOut failed or timed out:', error);
+    }
+    // Always clear local state and storage
+    localStorage.removeItem('supabase.auth.token');
+    setUser(null);
+    setSession(null);
     setProfile(null);
     setIsAdmin(false);
   };
