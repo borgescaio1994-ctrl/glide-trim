@@ -58,27 +58,22 @@ serve(async (req: Request) => {
       );
     }
 
-    // Enviar para n8n webhook
-    const n8nWebhookUrl = Deno.env.get("N8N_WEBHOOK_URL");
+    // Enviar para n8n webhook (URL fixa de produção)
+    const webhookUrl = "https://primary-jzx9-production.up.railway.app/webhook/enviar-codigo";
+    console.log("Enviando para n8n webhook:", webhookUrl);
+    console.log("Payload:", JSON.stringify({ phone: formattedPhone, code: token }));
 
-    if (!n8nWebhookUrl) {
-      console.log("N8N_WEBHOOK_URL não configurado - modo desenvolvimento");
-      return new Response(
-        JSON.stringify({ success: true, message: "Código gerado (dev)", token }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    console.log("Enviando para n8n:", n8nWebhookUrl);
-
-    const n8nResponse = await fetch(n8nWebhookUrl, {
+    const n8nResponse = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phone: formattedPhone, code: token }),
     });
 
+    console.log("Status resposta n8n:", n8nResponse.status);
+
     if (!n8nResponse.ok) {
-      console.error("Erro n8n:", await n8nResponse.text());
+      const errorText = await n8nResponse.text();
+      console.error("Erro n8n:", errorText);
       return new Response(
         JSON.stringify({ error: "Erro ao enviar WhatsApp" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -88,7 +83,7 @@ serve(async (req: Request) => {
     console.log("WhatsApp enviado com sucesso");
 
     return new Response(
-      JSON.stringify({ success: true, message: "Código enviado" }),
+      JSON.stringify({ success: true, message: "Código enviado via WhatsApp" }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error) {
