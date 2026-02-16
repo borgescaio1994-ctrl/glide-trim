@@ -16,11 +16,11 @@ RUN npm install --force
 # Copy source code
 COPY . .
 
-# Build application
-RUN npm run build
+# Debug: Check if build succeeded
+RUN ls -la dist/ || echo "=== DIST NOT FOUND ==="
 
-# Expose port
-EXPOSE 3000
+# Debug: Check package.json scripts
+RUN cat package.json | grep -A 10 "scripts"
 
-# Start the application with explicit port
-CMD ["sh", "-c", "npm run preview -- --port 3000 --host 0.0.0.0"]
+# Start the application with full error output
+CMD ["sh", "-c", "echo '=== STARTING SERVER ===' && npm run preview -- --port 3000 --host 0.0.0.0 2>&1 || echo '=== SERVER FAILED ==='"]
