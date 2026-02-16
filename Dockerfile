@@ -1,5 +1,5 @@
-# Use Node.js instead of Bun
-FROM node:18-alpine
+# Use Node.js 20 instead of 18
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
