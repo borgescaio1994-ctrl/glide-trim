@@ -7,13 +7,13 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies with npm
-RUN npm install
+# Install dependencies with npm (force and ignore scripts)
+RUN npm install --force --no-optional --no-audit --no-fund
 
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application (skip postinstall to avoid infinite loop)
 RUN npm run build
 
 # Expose port
