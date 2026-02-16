@@ -10,11 +10,16 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  preview: {
+    allowedHosts: [
+      'glide-trim-production.up.railway.app',
+      'localhost',
+      '0.0.0.0'
+    ],
+    port: 3000,
+  },
   plugins: [
-    react({
-      // Adiciona suporte a Fast Refresh
-      fastRefresh: true,
-    }),
+    react(),
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
