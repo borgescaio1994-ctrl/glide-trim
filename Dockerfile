@@ -1,5 +1,5 @@
-# Use Node.js 20 instead of 18
-FROM node:20-alpine
+# Use Node.js 22 for maximum compatibility
+FROM node:22-alpine
 
 # Set working directory
 WORKDIR /app
