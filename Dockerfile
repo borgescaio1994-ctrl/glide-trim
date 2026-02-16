@@ -22,5 +22,5 @@ RUN ls -la dist/ || echo "=== DIST NOT FOUND ==="
 # Debug: Check package.json scripts
 RUN cat package.json | grep -A 10 "scripts"
 
-# Start application with Railway dynamic port
-CMD ["sh", "-c", "echo '=== STARTING SERVER ON RAILWAY PORT ===' && npm run preview 2>&1"]
+# Start application with Railway PORT environment variable
+CMD ["sh", "-c", "echo '=== STARTING SERVER ON PORT: $PORT ===' && npm run preview -- --port $PORT --host 0.0.0.0 2>&1"]
