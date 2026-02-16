@@ -19,8 +19,8 @@ COPY . .
 # Build application
 RUN npm run build
 
-# Expose port (Railway will assign dynamic port)
+# Expose port
 EXPOSE 8080
 
-# Start the application
-CMD ["npm", "run", "preview"]
+# Start the application with explicit port
+CMD ["sh", "-c", "npm run preview -- --port 8080 --host 0.0.0.0"]
