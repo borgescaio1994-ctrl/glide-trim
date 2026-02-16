@@ -13,17 +13,8 @@ RUN npm install --force --no-optional --no-audit --no-fund
 # Copy source code
 COPY . .
 
-# Debug: Check if tsconfig.json exists
-RUN ls -la
-
-# Debug: Check Node and npm versions
-RUN node --version && npm --version
-
-# Build the application with detailed output
-RUN npm run build --verbose || echo "Build failed with exit code $?"
-
-# Check if build succeeded
-RUN ls -la dist/ || echo "dist directory not found"
+# Build application
+RUN npm run build
 
 # Expose port
 EXPOSE 8080
