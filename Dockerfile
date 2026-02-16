@@ -20,7 +20,7 @@ COPY . .
 RUN npm run build
 
 # Expose port
-EXPOSE 8080
+EXPOSE 3000
 
 # Start the application with explicit port
-CMD ["sh", "-c", "npm run preview -- --port 8080 --host 0.0.0.0"]
+CMD ["sh", "-c", "npm run preview -- --port 3000 --host 0.0.0.0"]
