@@ -1,5 +1,5 @@
-# Use Node.js 22 for maximum compatibility
-FROM node:22-alpine
+# Use Node.js 22 with standard Linux (not Alpine) for Rollup compatibility
+FROM node:22
 
 # Set working directory
 WORKDIR /app
@@ -7,14 +7,17 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies with npm (force and ignore scripts)
-RUN npm install --force --no-optional --no-audit --no-fund
+# Clean install to avoid Rollup issues
+RUN rm -rf node_modules package-lock.json
+
+# Install dependencies
+RUN npm install --force
 
 # Copy source code
 COPY . .
 
-# Build with full error output
-RUN npm run build 2>&1 || (echo "=== BUILD FAILED ===" && npm run build 2>&1 && exit 1)
+# Build application
+RUN npm run build
 
 # Expose port
 EXPOSE 8080
