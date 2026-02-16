@@ -13,8 +13,8 @@ RUN npm install --force --no-optional --no-audit --no-fund
 # Copy source code
 COPY . .
 
-# Build application
-RUN npm run build
+# Build with full error output
+RUN npm run build 2>&1 || (echo "=== BUILD FAILED ===" && npm run build 2>&1 && exit 1)
 
 # Expose port
 EXPOSE 8080
