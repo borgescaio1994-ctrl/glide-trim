@@ -1,487 +1,280 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { format, parseISO, isToday, addDays, startOfDay } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { LocalNotifications } from '@capacitor/local-notifications';
-import { Capacitor } from '@capacitor/core';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Calendar } from '@/components/ui/calendar';
 import { toast } from 'sonner';
-import { format, addDays, parseISO, isBefore, startOfDay } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, Calendar, Clock, DollarSign, Scissors, Check, Loader2, Phone, MessageCircle } from 'lucide-react';
-
-interface Service {
-  id: string;
-  name: string;
-  duration_minutes: number;
-  price: number;
-  barber_id: string;
-}
-
-interface BarberSchedule {
-  day_of_week: number;
-  start_time: string;
-  end_time: string;
-  break_start?: string;
-  break_end?: string;
-  is_active: boolean;
-}
-
-interface Appointment {
-  appointment_date: string;
-  start_time: string;
-  end_time: string;
-}
+import { ArrowLeft, Clock, Loader2, Scissors, DollarSign, User } from 'lucide-react';
 
 export default function BookAppointment() {
   const { barberId, serviceId } = useParams();
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   
-  const [service, setService] = useState<Service | null>(null);
+  // Estados
   const [barberName, setBarberName] = useState('');
-  const [schedules, setSchedules] = useState<BarberSchedule[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [service, setService] = useState<any>(null);
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [phoneInput, setPhoneInput] = useState('');
+  const [isBookingInProgress, setIsBookingInProgress] = useState(false);
 
-  // Phone verification states
-  const [showPhoneVerification, setShowPhoneVerification] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [verifyingPhone, setVerifyingPhone] = useState(false);
-  const [codeSent, setCodeSent] = useState(false);
-  const [verifyingCode, setVerifyingCode] = useState(false);
-
-  const fetchAppointments = async () => {
-    try {
-      const startDate = format(new Date(), 'yyyy-MM-dd');
-      const endDate = format(addDays(new Date(), 30), 'yyyy-MM-dd');
-
-      const { data: appointmentsData } = await supabase
-        .from('appointments')
-        .select('appointment_date, start_time, end_time')
-        .eq('barber_id', barberId)
-        .eq('status', 'scheduled')
-        .gte('appointment_date', startDate)
-        .lte('appointment_date', endDate);
-
-      if (appointmentsData) {
-        setAppointments(appointmentsData);
-      }
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
-    }
-  };
-
+  // Carregar dados iniciais
   useEffect(() => {
-    if (barberId && serviceId) {
-      fetchData();
-    }
+    const loadData = async () => {
+      if (!barberId || !serviceId) return;
+      
+      try {
+        // Carregar dados do barbeiro
+        const { data: barber } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', barberId)
+          .single();
+        
+        if (barber) setBarberName(barber.full_name);
+
+        // Carregar serviço
+        const { data: serviceData } = await supabase
+          .from('services')
+          .select('*')
+          .eq('id', serviceId)
+          .single();
+        
+        if (serviceData) setService(serviceData);
+
+        // Carregar horários de trabalho
+        const { data: schedulesData } = await supabase
+          .from('barber_schedules')
+          .select('*')
+          .eq('barber_id', barberId)
+          .eq('is_active', true);
+        
+        if (schedulesData) setSchedules(schedulesData);
+
+        // Carregar agendamentos existentes
+        const { data: appointmentsData } = await supabase
+          .from('appointments')
+          .select('*')
+          .eq('barber_id', barberId)
+          .eq('status', 'scheduled');
+        
+        if (appointmentsData) setAppointments(appointmentsData);
+
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+        toast.error('Erro ao carregar dados do agendamento');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, [barberId, serviceId]);
 
-  useEffect(() => {
-    if (!barberId) return;
-
-    const channel = supabase
-      .channel('appointments_changes')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'appointments',
-        filter: `barber_id=eq.${barberId}`,
-      }, () => {
-        fetchAppointments();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [barberId]);
-
-  const fetchData = async () => {
-    try {
-      const { data: serviceData } = await supabase
-        .from('services')
-        .select('*')
-        .eq('id', serviceId)
-        .single();
-
-      if (serviceData) {
-        setService(serviceData);
+  // Verificar se uma data tem horários disponíveis
+  const checkAvailableSlots = (date: Date): boolean => {
+    const dayOfWeek = date.getDay();
+    const schedule = schedules.find(s => s.day_of_week === dayOfWeek);
+    
+    if (!schedule || !service) return false;
+    
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const startMinutes = parseInt(schedule.start_time.split(':')[0]) * 60 + parseInt(schedule.start_time.split(':')[1]);
+    const endMinutes = parseInt(schedule.end_time.split(':')[0]) * 60 + parseInt(schedule.end_time.split(':')[1]);
+    
+    // Filtrar agendamentos do dia
+    const dayAppointments = appointments.filter(a => a.appointment_date === dateStr);
+    
+    // Verificar cada slot de 30 minutos
+    for (let slotStart = startMinutes; slotStart + service.duration_minutes <= endMinutes; slotStart += 30) {
+      const slotEnd = slotStart + service.duration_minutes;
+      
+      // Verificar se o slot não está ocupado
+      const isOccupied = dayAppointments.some(apt => {
+        const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1]);
+        const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1]);
+        
+        // Verificar sobreposição
+        return (slotStart < aptEnd && slotEnd > aptStart);
+      });
+      
+      if (!isOccupied) {
+        // Se for hoje, verificar se o horário já passou
+        if (isToday(date)) {
+          const slotTime = new Date();
+          slotTime.setHours(Math.floor(slotStart / 60), slotStart % 60, 0, 0);
+          if (slotTime > new Date()) {
+            return true; // Encontrou um slot disponível
+          }
+        } else {
+          return true; // Encontrou um slot disponível
+        }
       }
-
-      const { data: barberData } = await supabase
-        .from('profiles')
-        .select('full_name, phone')
-        .eq('id', barberId)
-        .single();
-
-      if (barberData) {
-        setBarberName(barberData.full_name);
-      }
-
-      const { data: schedulesData } = await supabase
-        .from('barber_schedules')
-        .select('*')
-        .eq('barber_id', barberId)
-        .eq('is_active', true);
-
-      if (schedulesData) {
-        setSchedules(schedulesData);
-      }
-
-      await fetchAppointments();
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
     }
+    
+    return false; // Nenhum slot disponível
   };
 
-  const getAvailableDates = () => {
+  // Calcular datas disponíveis
+  const availableDates = useMemo(() => {
     const dates: Date[] = [];
     const today = startOfDay(new Date());
-
+    
     for (let i = 0; i < 30; i++) {
       const date = addDays(today, i);
       const dayOfWeek = date.getDay();
-      const hasSchedule = schedules.some((s) => s.day_of_week === dayOfWeek);
-
-      if (hasSchedule) {
+      
+      // Verificar se o barbeiro trabalha neste dia
+      const schedule = schedules.find(s => s.day_of_week === dayOfWeek);
+      if (!schedule) continue;
+      
+      // Verificar se há horários disponíveis neste dia
+      const hasSlots = checkAvailableSlots(date);
+      if (hasSlots) {
         dates.push(date);
       }
     }
-
+    
     return dates;
-  };
+  }, [schedules, appointments, service]);
 
-  const getAvailableTimeSlots = (dateStr: string) => {
-    if (!service) return [];
-
-    const date = parseISO(dateStr);
+  // Calcular horários disponíveis para a data selecionada
+  const availableSlots = useMemo(() => {
+    if (!selectedDate || !service) return [];
+    
+    const date = parseISO(selectedDate);
     const dayOfWeek = date.getDay();
-    const schedule = schedules.find((s) => s.day_of_week === dayOfWeek);
-
+    const schedule = schedules.find(s => s.day_of_week === dayOfWeek);
+    
     if (!schedule) return [];
-
+    
+    const startMinutes = parseInt(schedule.start_time.split(':')[0]) * 60 + parseInt(schedule.start_time.split(':')[1]);
+    const endMinutes = parseInt(schedule.end_time.split(':')[0]) * 60 + parseInt(schedule.end_time.split(':')[1]);
+    
+    // Filtrar agendamentos do dia
+    const dayAppointments = appointments.filter(a => a.appointment_date === selectedDate);
+    
     const slots: string[] = [];
-    const startHour = parseInt(schedule.start_time.split(':')[0]);
-    const startMin = parseInt(schedule.start_time.split(':')[1]);
-    const endHour = parseInt(schedule.end_time.split(':')[0]);
-    const endMin = parseInt(schedule.end_time.split(':')[1]);
-
-    const startMinutes = startHour * 60 + startMin;
-    const endMinutes = endHour * 60 + endMin;
-
-    const dayAppointments = appointments.filter((a) => a.appointment_date === dateStr);
-
-    for (let time = startMinutes; time + service.duration_minutes <= endMinutes; time += 30) {
-      const hours = Math.floor(time / 60);
-      const mins = time % 60;
-      const slotStart = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-      const slotEndTime = time + service.duration_minutes;
-      const slotEnd = `${Math.floor(slotEndTime / 60).toString().padStart(2, '0')}:${(slotEndTime % 60).toString().padStart(2, '0')}`;
-
-      const hasConflict = dayAppointments.some((apt) => {
-        const aptStart = apt.start_time.slice(0, 5);
-        const aptEnd = apt.end_time.slice(0, 5);
+    
+    // Gerar slots de 30 em 30 minutos
+    for (let slotStart = startMinutes; slotStart + service.duration_minutes <= endMinutes; slotStart += 30) {
+      const slotEnd = slotStart + service.duration_minutes;
+      const timeStr = `${Math.floor(slotStart / 60).toString().padStart(2, '0')}:${(slotStart % 60).toString().padStart(2, '0')}`;
+      
+      // Verificar se o slot está ocupado
+      const isOccupied = dayAppointments.some(apt => {
+        const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1]);
+        const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1]);
+        
+        // Verificar sobreposição
         return (slotStart < aptEnd && slotEnd > aptStart);
       });
-
-      const now = new Date();
-      const slotDate = parseISO(dateStr);
-      slotDate.setHours(hours, mins, 0, 0);
-      const isInPast = isBefore(slotDate, now);
-
-      let overlapsBreak = false;
-      if (schedule.break_start && schedule.break_end) {
-        const breakStart = schedule.break_start.slice(0, 5);
-        const breakEnd = schedule.break_end.slice(0, 5);
-        if (slotStart < breakEnd && slotEnd > breakStart) {
-          overlapsBreak = true;
+      
+      // Se não estiver ocupado, adicionar à lista
+      if (!isOccupied) {
+        // Se for hoje, verificar se o horário já passou
+        if (isToday(date)) {
+          const slotTime = new Date();
+          slotTime.setHours(Math.floor(slotStart / 60), slotStart % 60, 0, 0);
+          if (slotTime > new Date()) {
+            slots.push(timeStr);
+          }
+        } else {
+          slots.push(timeStr);
         }
       }
-
-      if (!hasConflict && !isInPast && !overlapsBreak) {
-        slots.push(slotStart);
-      }
     }
-
-    return slots;
-  };
-
-  const formatPhoneNumber = (value: string) => {
-    const digits = value.replace(/\D/g, '');
     
-    if (digits.length <= 2) {
-      return `(${digits}`;
-    } else if (digits.length <= 7) {
-      return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    } else {
-      return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
-    }
-  };
+    return slots;
+  }, [selectedDate, schedules, appointments, service]);
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatPhoneNumber(e.target.value);
-    if (formatted.replace(/\D/g, '').length <= 11) {
-      setPhoneNumber(formatted);
-    }
-  };
-
-  const handleSendCode = async () => {
-    const digits = phoneNumber.replace(/\D/g, '');
-    if (digits.length < 10) {
-      toast.error('Digite um número de telefone válido');
-      return;
-    }
-
-    const fullPhoneNumber = digits.startsWith('55') ? digits : `55${digits}`;
-    setVerifyingPhone(true);
-
-    try {
-      // 1. Gerar código de 6 dígitos
-      const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-      // 2. Salvar na tabela phone_verifications do Supabase
-      const { error: dbError } = await supabase.from('phone_verifications').insert({
-        phone_number: digits,
-        token: generatedCode,
-        expires_at: new Date(Date.now() + 10 * 60000).toISOString() // 10 min
-      });
-
-      if (dbError) throw dbError;
-
-      // 3. Enviar para o Webhook do n8n
-      const webhookUrl = 'https://primary-jzx9-production.up.railway.app/webhook/enviar-codigo'; // ATENÇÃO: COLOQUE SUA URL DE PRODUÇÃO DO N8N AQUI
-
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: fullPhoneNumber,
-          code: generatedCode
-        })
-      });
-
-      if (!response.ok) throw new Error('Falha ao enviar via n8n');
-
-      setCodeSent(true);
-      toast.success('Código enviado via WhatsApp!');
-    } catch (error) {
-      console.error('Error sending verification:', error);
-      toast.error('Erro ao enviar código. Tente novamente.');
-    } finally {
-      setVerifyingPhone(false);
-    }
-  };
-
-  const handleVerifyCode = async () => {
-    if (verificationCode.length !== 6) {
-      toast.error('Digite o código de 6 dígitos');
-      return;
-    }
-
-    setVerifyingCode(true);
-
-    try {
-      // Buscar o código no banco
-      const { data, error } = await supabase
-        .from('phone_verifications')
-        .select('*')
-        .eq('phone_number', phoneNumber.replace(/\D/g, ''))
-        .eq('token', verificationCode)
-        .is('verified_at', null)
-        .single();
-
-      if (error || !data) {
-        toast.error('Código inválido ou expirado');
-        return;
-      }
-
-      // Marcar como verificado
-      await supabase
-        .from('phone_verifications')
-        .update({ verified_at: new Date().toISOString() })
-        .eq('id', data.id);
-
-      toast.success('Número verificado com sucesso!');
-      
-      if (user && profile?.id) {
-        await supabase
-          .from('profiles')
-          .update({ phone: phoneNumber.replace(/\D/g, '') })
-          .eq('id', profile.id);
-      }
-      
-      setShowPhoneVerification(false);
-      handleBook();
-    } catch (error) {
-      console.error('Error verifying code:', error);
-      toast.error('Erro ao verificar código');
-    } finally {
-      setVerifyingCode(false);
-    }
-  };
-
-  const handleConfirmClick = () => {
-    if (confirming) return;
-    if (!user) {
-      navigate('/auth');
-      return;
-    }
-    if (!profile?.phone) {
-      setShowPhoneVerification(true);
-    } else {
-      handleBook();
-    }
-  };
-
+  // Confirmar agendamento
   const handleBook = async () => {
-    if (!profile?.id || !service || !selectedDate || !selectedTime) return;
-
+    if (!user || !selectedDate || !selectedTime || !service || isBookingInProgress) return;
+    
+    setIsBookingInProgress(true);
     setBooking(true);
-
+    
     try {
-      const startMinutes = parseInt(selectedTime.split(':')[0]) * 60 + parseInt(selectedTime.split(':')[1]);
-      const endMinutes = startMinutes + service.duration_minutes;
-      const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
-
-      const { data: existingAppointment } = await supabase
-        .from('appointments')
-        .select('id')
-        .eq('barber_id', barberId)
-        .eq('appointment_date', selectedDate)
-        .eq('start_time', selectedTime)
-        .eq('status', 'scheduled')
-        .single();
-
-      if (existingAppointment) {
-        toast.error('Este horário já foi agendado.');
+      // Verificar se o horário ainda está disponível
+      const dayAppointments = appointments.filter(a => a.appointment_date === selectedDate);
+      const slotStart = parseInt(selectedTime.split(':')[0]) * 60 + parseInt(selectedTime.split(':')[1]);
+      const slotEnd = slotStart + service.duration_minutes;
+      
+      const isOccupied = dayAppointments.some(apt => {
+        const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1]);
+        const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1]);
+        return (slotStart < aptEnd && slotEnd > aptStart);
+      });
+      
+      if (isOccupied) {
+        toast.error('Este horário acabou de ser ocupado. Escolha outro horário.');
         return;
       }
-
-      await supabase.from('appointments').insert({
-        client_id: profile.id,
+      
+      // Inserir agendamento
+      const { error } = await supabase.from('appointments').insert({
+        client_id: user.id,
         barber_id: barberId,
         service_id: serviceId,
         appointment_date: selectedDate,
         start_time: selectedTime,
-        end_time: endTime,
+        end_time: `${Math.floor(slotEnd / 60).toString().padStart(2, '0')}:${(slotEnd % 60).toString().padStart(2, '0')}`,
         status: 'scheduled',
       });
-
-      toast.success('Agendamento realizado com sucesso!');
+      
+      if (error) throw error;
+      
+      // Adicionar à lista local para atualizar imediatamente
+      const newAppointment = {
+        client_id: user.id,
+        barber_id: barberId,
+        service_id: serviceId,
+        appointment_date: selectedDate,
+        start_time: selectedTime,
+        end_time: `${Math.floor(slotEnd / 60).toString().padStart(2, '0')}:${(slotEnd % 60).toString().padStart(2, '0')}`,
+        status: 'scheduled',
+      };
+      
+      setAppointments(prev => [...prev, newAppointment]);
+      setSelectedTime(null);
+      
+      toast.success('Agendado com sucesso!');
       navigate('/appointments');
+      
     } catch (error) {
-      console.error('Error booking:', error);
-      toast.error('Erro ao realizar agendamento');
+      console.error('Erro ao agendar:', error);
+      toast.error('Erro ao agendar. Tente novamente.');
     } finally {
       setBooking(false);
-      setConfirming(false);
+      setIsBookingInProgress(false);
     }
   };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  };
-
-  const availableDates = getAvailableDates();
-  const availableTimeSlots = selectedDate ? getAvailableTimeSlots(selectedDate) : [];
 
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="text-center">
+          <Loader2 className="animate-spin text-primary w-8 h-8 mb-4" />
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
       </div>
     );
   }
 
-  if (showPhoneVerification && user) {
+  if (!service || !barberName) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="px-5 pt-12 pb-6">
-          <div className="flex items-center gap-4 mb-6">
-            <button
-              onClick={() => {
-                setShowPhoneVerification(false);
-                setCodeSent(false);
-                setVerificationCode('');
-              }}
-              className="p-2 hover:bg-muted rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-foreground" />
-            </button>
-            <h1 className="text-2xl font-bold text-foreground">Confirmar Agendamento</h1>
-          </div>
-        </header>
-
-        <div className="px-5">
-          <div className="space-y-4">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <MessageCircle className="w-8 h-8 text-primary" />
-              </div>
-              <h2 className="text-xl font-semibold text-foreground mb-2">
-                {codeSent ? 'Digite o código' : 'Verificar WhatsApp'}
-              </h2>
-              <p className="text-muted-foreground text-sm">
-                {codeSent 
-                  ? 'Insira o código enviado para seu WhatsApp'
-                  : 'Digite seu WhatsApp para receber a confirmação'
-                }
-              </p>
-            </div>
-
-            {!codeSent ? (
-              <>
-                <div className="space-y-2">
-                  <Input
-                    type="tel"
-                    placeholder="(11) 99999-9999"
-                    value={phoneNumber}
-                    onChange={handlePhoneChange}
-                    className="h-12 text-lg text-center"
-                  />
-                </div>
-                <Button
-                  onClick={handleSendCode}
-                  disabled={verifyingPhone || phoneNumber.replace(/\D/g, '').length < 10}
-                  className="w-full h-12"
-                >
-                  {verifyingPhone ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Enviar código'}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Input
-                  type="text"
-                  placeholder="000000"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="h-12 text-lg text-center tracking-widest font-mono"
-                  maxLength={6}
-                />
-                <Button
-                  onClick={handleVerifyCode}
-                  disabled={verifyingCode || verificationCode.length !== 6}
-                  className="w-full h-12"
-                >
-                  {verifyingCode ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verificar e agendar'}
-                </Button>
-              </>
-            )}
-          </div>
+      <div className="min-h-screen bg-background flex items-center justify-center p-5">
+        <div className="text-center">
+          <h1 className="text-xl font-bold mb-4">Dados não encontrados</h1>
+          <Button onClick={() => navigate('/')}>Voltar</Button>
         </div>
       </div>
     );
@@ -489,57 +282,123 @@ export default function BookAppointment() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="px-5 pt-12 pb-6">
-        <div className="flex items-center gap-4 mb-6">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-muted rounded-lg">
-            <ArrowLeft className="w-5 h-5 text-foreground" />
-          </button>
-          <h1 className="text-2xl font-bold text-foreground">Agendar</h1>
+      <div className="max-w-2xl mx-auto p-5">
+        <header className="flex items-center gap-4 mb-8">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft />
+          </Button>
+          <h1 className="text-2xl font-bold">Agendar Horário</h1>
+        </header>
+
+        {/* Informações do serviço */}
+        <div className="bg-card rounded-xl p-4 mb-6 border">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Scissors className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold">{service.name}</h3>
+              <p className="text-sm text-muted-foreground">com {barberName}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Clock className="w-4 h-4" />
+              {service.duration_minutes} min
+            </span>
+            <span className="flex items-center gap-1">
+              <DollarSign className="w-4 h-4" />
+              R$ {service.price}
+            </span>
+          </div>
         </div>
-        {service && (
-          <div className="bg-card rounded-2xl p-4 border border-border/50">
-            <h2 className="font-semibold">{service.name}</h2>
-            <p className="text-sm text-muted-foreground">{barberName} • {formatPrice(Number(service.price))}</p>
+
+        {/* Calendário */}
+        <div className="mb-6">
+          <h2 className="font-semibold mb-4">1. Escolha a data</h2>
+          <Calendar
+            mode="single"
+            selected={selectedDate ? parseISO(selectedDate) : undefined}
+            onSelect={(date) => {
+              if (date) {
+                setSelectedDate(format(date, 'yyyy-MM-dd'));
+                setSelectedTime(null);
+              }
+            }}
+            disabled={(date) => {
+              // Desabilitar datas passadas
+              if (date < startOfDay(new Date())) return true;
+              
+              // Desabilitar datas sem horários disponíveis
+              return !checkAvailableSlots(date);
+            }}
+            modifiers={{
+              available: (date) => checkAvailableSlots(date),
+            }}
+            modifiersStyles={{
+              available: { 
+                backgroundColor: 'hsl(var(--primary))', 
+                color: 'hsl(var(--primary-foreground))',
+                fontWeight: 'bold'
+              }
+            }}
+            className="rounded-lg border"
+            locale={ptBR}
+          />
+        </div>
+
+        {/* Horários disponíveis */}
+        {selectedDate && (
+          <div className="mb-6">
+            <h2 className="font-semibold mb-4">2. Escolha o horário</h2>
+            {availableSlots.length === 0 ? (
+              <div className="text-center py-8 bg-muted/30 rounded-xl">
+                <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Nenhum horário disponível para esta data</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                {availableSlots.map(slot => (
+                  <button
+                    key={slot}
+                    onClick={() => setSelectedTime(slot)}
+                    className={`py-3 rounded-xl border-2 font-bold transition-all ${
+                      selectedTime === slot
+                        ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                        : 'bg-card border-border hover:border-primary/50'
+                    }`}
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
-      </header>
 
-      <div className="px-5 mb-6">
-        <div className="flex gap-2 overflow-x-auto">
-          {availableDates.map((date) => (
-            <button
-              key={format(date, 'yyyy-MM-dd')}
-              onClick={() => setSelectedDate(format(date, 'yyyy-MM-dd'))}
-              className={`flex-shrink-0 w-16 py-3 rounded-xl border ${selectedDate === format(date, 'yyyy-MM-dd') ? 'bg-primary text-white' : 'bg-card'}`}
+        {/* Botão de confirmar */}
+        {selectedDate && selectedTime && (
+          <div className="mt-8 mb-8">
+            <Button
+              onClick={user ? handleBook : () => navigate('/auth')}
+              disabled={booking}
+              className="w-full h-14 text-lg font-semibold"
+              size="lg"
             >
-              <span className="text-xs">{format(date, 'EEE', { locale: ptBR })}</span>
-              <p className="font-bold">{format(date, 'd')}</p>
-            </button>
-          ))}
-        </div>
+              {booking ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Agendando...
+                </>
+              ) : user ? (
+                'Confirmar Agendamento'
+              ) : (
+                'Fazer Login para Agendar'
+              )}
+            </Button>
+          </div>
+        )}
       </div>
-
-      {selectedDate && (
-        <div className="px-5 grid grid-cols-4 gap-2">
-          {availableTimeSlots.map((time) => (
-            <button
-              key={time}
-              onClick={() => setSelectedTime(time)}
-              className={`py-2 rounded-lg border ${selectedTime === time ? 'bg-primary text-white' : 'bg-card'}`}
-            >
-              {time}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {selectedDate && selectedTime && (
-        <div className="p-5">
-          <Button onClick={handleConfirmClick} disabled={booking} className="w-full h-12">
-            {booking ? <Loader2 className="animate-spin" /> : 'Confirmar Agendamento'}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

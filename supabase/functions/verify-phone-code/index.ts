@@ -12,6 +12,7 @@ interface VerifyCodeRequest {
 }
 
 const handler = async (req: Request): Promise<Response> => {
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -21,7 +22,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (!phone || !code) {
       return new Response(
-        JSON.stringify({ error: "Telefone e código são obrigatórios" }),
+        JSON.stringify({ error: "Número de telefone e código são obrigatórios" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -32,14 +33,22 @@ const handler = async (req: Request): Promise<Response> => {
       formattedPhone = "55" + formattedPhone;
     }
 
-    console.log("Verifying code for phone:", formattedPhone);
+    console.log("Verifying code for phone:", formattedPhone, "code:", code);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Find the verification record
-    const { data: verification, error: fetchError } = await supabase
+    // First, check all records for this phone
+    const { data: allRecords, error: allError } = await supabase
+      .from("phone_verifications")
+      .select("*")
+      .eq("phone_number", formattedPhone);
+
+    console.log("All records for phone:", allRecords, "error:", allError);
+
+    // Query the verification record
+    const { data, error } = await supabase
       .from("phone_verifications")
       .select("*")
       .eq("phone_number", formattedPhone)
@@ -47,21 +56,13 @@ const handler = async (req: Request): Promise<Response> => {
       .is("verified_at", null)
       .single();
 
-    if (fetchError || !verification) {
-      console.log("Verification not found or already used:", fetchError);
-      return new Response(
-        JSON.stringify({ error: "Código inválido ou já utilizado" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
+    console.log("Query result - data:", data, "error:", error);
 
-    // Check if expired
-    const expiresAt = new Date(verification.expires_at);
-    if (expiresAt < new Date()) {
-      console.log("Code expired at:", expiresAt);
+    if (error || !data) {
+      console.log("Verification failed:", error);
       return new Response(
-        JSON.stringify({ error: "Código expirado. Solicite um novo." }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ valid: false, error: "Código inválido ou expirado" }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -69,67 +70,24 @@ const handler = async (req: Request): Promise<Response> => {
     const { error: updateError } = await supabase
       .from("phone_verifications")
       .update({ verified_at: new Date().toISOString() })
-      .eq("id", verification.id);
+      .eq("id", data.id);
 
     if (updateError) {
       console.error("Error updating verification:", updateError);
       return new Response(
-        JSON.stringify({ error: "Erro ao validar código" }),
+        JSON.stringify({ error: "Erro ao atualizar verificação" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
     console.log("Code verified successfully");
 
-    // Find or create user
-    const { data: existingUsers } = await supabase.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find(u => u.phone === formattedPhone);
-
-    let userId: string;
-
-    if (existingUser) {
-      userId = existingUser.id;
-      console.log("User already exists:", userId);
-    } else {
-      // Create new user with phone
-      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-        phone: formattedPhone,
-        phone_confirm: true,
-      });
-
-      if (createError) {
-        console.error("Error creating user:", createError);
-        return new Response(
-          JSON.stringify({ error: "Erro ao criar conta de usuário" }),
-          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-        );
-      }
-
-      userId = newUser.user.id;
-      console.log("Created new user:", userId);
-
-      // Create profile
-      await supabase.from("profiles").insert({
-        id: userId,
-        phone: formattedPhone,
-        full_name: "Cliente WhatsApp",
-        email: `${formattedPhone}@whatsapp.temp`,
-        role: "client",
-      });
-    }
-
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        verified: true, 
-        phone: formattedPhone, 
-        user_id: userId 
-      }),
+      JSON.stringify({ valid: true, message: "Código verificado com sucesso" }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
-
   } catch (error: unknown) {
-    console.error("Error in verify-phone-code:", error);
+    console.error("Error in verify-phone-code function:", error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ error: errorMessage }),

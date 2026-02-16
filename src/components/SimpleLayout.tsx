@@ -1,10 +1,7 @@
 import { ReactNode, useState, useEffect } from 'react';
-import BottomNav from './BottomNav';
-import { useAuth } from '@/hooks/useAuth';
 import { MessageCircle } from 'lucide-react';
 
-export default function Layout({ children, showNav = true }: { children: ReactNode, showNav?: boolean }) {
-  const { user } = useAuth();
+export default function SimpleLayout({ children }: { children: ReactNode }) {
   const [position, setPosition] = useState({ x: 20, y: window.innerHeight - 150 });
   const [isDragging, setIsDragging] = useState(false);
   const [rel, setRel] = useState({ x: 0, y: 0 });
@@ -42,8 +39,7 @@ export default function Layout({ children, showNav = true }: { children: ReactNo
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <main className={showNav && user ? 'pb-20' : ''}>{children}</main>
-      {showNav && user && <BottomNav />}
+      <main>{children}</main>
       <button
         onMouseDown={onStart} onTouchStart={onStart}
         onClick={() => !isDragging && window.open('https://wa.me/5511915605439', '_blank')}

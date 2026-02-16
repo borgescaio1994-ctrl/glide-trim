@@ -11,21 +11,40 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [
-    react(),
+    react({
+      // Adiciona suporte a Fast Refresh
+      fastRefresh: true,
+    }),
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
+        // Estratégia de cache otimizada
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/api\./i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 // 24 horas
+              }
+            }
+          }
+        ]
       },
       manifest: {
-        name: "BarberPro PWA",
+        name: "BarberPro - Agendamentos",
         short_name: "BarberPro",
-        description: "Aplicativo para agendamento de barbeiros",
+        description: "Sistema profissional para agendamento de barbeiros",
         theme_color: "#000000",
         background_color: "#ffffff",
         display: "standalone",
         lang: "pt-BR",
+        start_url: "/",
+        scope: "/",
         icons: [
           {
             src: "/favicon.ico",
@@ -33,14 +52,16 @@ export default defineConfig(({ mode }) => ({
             type: "image/x-icon",
           },
           {
-            src: "/favicon.ico",
-            type: "image/x-icon",
+            src: "/icon-192.svg",
             sizes: "192x192",
+            type: "image/svg+xml",
+            purpose: "any maskable"
           },
           {
-            src: "/favicon.ico",
-            type: "image/x-icon",
+            src: "/icon-512.svg",
             sizes: "512x512",
+            type: "image/svg+xml",
+            purpose: "any maskable"
           },
         ],
       },
@@ -51,4 +72,35 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    // Otimizações de build
+    target: 'esnext',
+    minify: 'esbuild',
+    sourcemap: mode === 'development',
+    rollupOptions: {
+      output: {
+        // Split automático de chunks
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
+          supabase: ['@supabase/supabase-js'],
+          utils: ['date-fns', 'clsx', 'tailwind-merge']
+        }
+      }
+    },
+    // Limites de chunk size
+    chunkSizeWarningLimit: 1000,
+  },
+  // Otimizações de dependências
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      '@supabase/supabase-js',
+      'date-fns',
+      'lucide-react'
+    ]
+  }
 }));

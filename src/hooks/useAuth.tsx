@@ -1,240 +1,120 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session, AuthError } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
-
-interface Profile {
-  id: string;
-  full_name: string;
-  email: string;
-  phone: string | null;
-  role: 'barber' | 'client';
-  avatar_url: string | null;
-}
+import { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
-  profile: Profile | null;
+  profile: any | null;
   isAdmin: boolean;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, role: 'barber' | 'client') => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  fetchProfile: (userId: string) => Promise<any>;
+  setIsAdmin: (value: boolean) => void;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
+  needsPhoneVerification: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const fetchProfile = async (userId: string) => {
-    console.log('fetchProfile called with userId:', userId);
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle(); // Usando maybeSingle para evitar erros de consulta única
 
-      console.log('fetchProfile query result - data:', data, 'error:', error);
-      if (!error && data) {
-        setProfile(data as Profile);
-        console.log('Profile set successfully:', data);
-      } else {
-        console.log('No profile data or error:', error);
+      if (error) throw error;
+
+      if (data) {
+        // Sanitização rigorosa para evitar valores null no Guard
+        const cleanProfile = {
+          ...data,
+          is_verified: data.is_verified === true || data.phone_verified === true, 
+          phone: data.phone || data.phone_number || data.whatsapp_number || "",
+        };
+        
+        setProfile(cleanProfile);
+        return cleanProfile;
       }
+      return null;
     } catch (error) {
-      console.error('Exception in fetchProfile:', error);
-    }
-  };
-
-  const checkAdminRole = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .eq('role', 'admin')
-        .maybeSingle();
-
-      setIsAdmin(!error && !!data);
-    } catch (error) {
-      console.error('Error checking admin role:', error);
-      setIsAdmin(false);
-    }
-  };
-
-  const createProfileForOAuthUser = async (user: User) => {
-    try {
-      // Check if profile already exists
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .single();
-
-      if (existingProfile) {
-        console.log('Profile already exists for OAuth user');
-        return;
-      }
-
-      // Create profile for OAuth user
-      const fullName = user.user_metadata?.full_name || user.user_metadata?.name || 'Usuário';
-      const { error } = await supabase
-        .from('profiles')
-        .insert({
-          id: user.id,
-          full_name: fullName,
-          email: user.email,
-          role: 'client', // Default role for OAuth users
-          avatar_url: user.user_metadata?.avatar_url || null,
-        });
-
-      if (error) {
-        console.error('Error creating profile for OAuth user:', error);
-      } else {
-        console.log('Profile created successfully for OAuth user');
-      }
-    } catch (error) {
-      console.error('Exception creating profile for OAuth user:', error);
+      console.error("❌ Erro ao buscar perfil:", error);
+      return null;
     }
   };
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('onAuthStateChange event:', event, 'session:', session ? 'exists' : 'null');
-      setSession(session);
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-
       if (session?.user) {
-        console.log('User logged in, checking if profile needs to be created');
-
-        // For OAuth sign-ins, ensure profile exists
-        if (event === 'SIGNED_IN' && session.user.app_metadata?.provider === 'google') {
-          await createProfileForOAuthUser(session.user);
-        }
-
-        console.log('Fetching profile and checking admin role for user:', session.user.id);
-        fetchProfile(session.user.id);
-        checkAdminRole(session.user.id);
+        fetchProfile(session.user.id).finally(() => setLoading(false));
       } else {
-        console.log('No user session, clearing profile and admin status');
-        setProfile(null);
-        setIsAdmin(false);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        // For OAuth sign-ins, ensure profile exists
-        if (session.user.app_metadata?.provider === 'google') {
-          await createProfileForOAuthUser(session.user);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        } else {
+          setProfile(null);
         }
-
-        fetchProfile(session.user.id);
-        checkAdminRole(session.user.id);
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string, role: 'barber' | 'client') => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          full_name: fullName,
-          role: role,
-        },
-      },
-    });
-    
-    return { error };
-  };
-
-  const signIn = async (email: string, password: string) => {
-    console.log('Tentando fazer login com email:', email);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) {
-        console.error('Erro no login:', error);
-      } else {
-        console.log('Login bem-sucedido');
-      }
-      return { error };
-    } catch (err) {
-      console.error('Exceção no signIn:', err);
-      return { error: err as Error };
-    }
-  };
-
   const signInWithGoogle = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/`,
-        },
-      });
-      return { error };
-    } catch (err) {
-      console.error('Exceção no signInWithGoogle:', err);
-      return { error: err as Error };
-    }
+    return await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/` },
+    });
   };
 
   const signOut = async () => {
-    console.log('signOut called');
-    try {
-      const signOutPromise = supabase.auth.signOut();
-      const result = await Promise.race([
-        signOutPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('SignOut timeout')), 10000))
-      ]);
-      const { error } = result as { error: AuthError | null };
-      if (error) {
-        console.error('Error during signOut:', error);
-        throw error;
-      }
-      console.log('signOut successful');
-    } catch (error) {
-      console.error('SignOut failed or timed out:', error);
-    }
-    // Always clear local state and storage
-    localStorage.removeItem('supabase.auth.token');
+    setLoading(true);
+    await supabase.auth.signOut();
     setUser(null);
-    setSession(null);
     setProfile(null);
-    setIsAdmin(false);
+    setLoading(false);
   };
 
+  // Calcula se o usuário precisa verificar telefone
+  const needsPhoneVerification = user && !loading && profile && 
+    !(profile.is_verified === true || profile.phone_verified === true);
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, isAdmin, loading, signUp, signIn, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      profile, 
+      loading, 
+      signOut, 
+      fetchProfile, 
+      isAdmin, 
+      setIsAdmin, 
+      signInWithGoogle,
+      needsPhoneVerification
+    }}>
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth deve ser usado dentro de um AuthProvider");
   }
   return context;
-}
+};

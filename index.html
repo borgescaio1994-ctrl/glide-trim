@@ -9,11 +9,11 @@
 
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#000000" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="BarberPro" />
     <link rel="apple-touch-icon" href="/favicon.ico" />
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="/manifest.webmanifest" />
 
     <!-- Open Graph -->
     <meta property="og:title" content="BarberPro PWA" />
@@ -29,5 +29,20 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+              console.log('✅ Service Worker registrado:', registration);
+            })
+            .catch(error => {
+              console.log('❌ Service Worker falhou:', error);
+            });
+        });
+      }
+    </script>
   </body>
 </html>

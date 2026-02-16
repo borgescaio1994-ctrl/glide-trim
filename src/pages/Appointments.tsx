@@ -40,10 +40,29 @@ export default function Appointments() {
   }, [profile?.id]);
 
   const fetchAppointments = async () => {
-    if (!profile?.id) return;
-
-    const column = profile.role === 'barber' ? 'barber_id' : 'client_id';
+    setLoading(true);
     
+    // Primeiro, executa a função de cancelamento automático via SQL direto
+    try {
+      await supabase.rpc('auto_cancel_past_appointments');
+      console.log(' Agendamentos passados cancelados automaticamente');
+    } catch (error) {
+      console.warn(' Erro ao cancelar agendamentos passados:', error);
+      // Se a função não existir, tenta via SQL direto
+      try {
+        await supabase
+          .from('appointments')
+          .update({ status: 'cancelled' })
+          .eq('status', 'scheduled')
+          .lt('appointment_date', new Date().toISOString().split('T')[0]);
+        console.log(' Agendamentos passados cancelados via SQL direto');
+      } catch (sqlError) {
+        console.warn(' Erro ao cancelar via SQL direto:', sqlError);
+      }
+    }
+    
+    // Depois, busca os agendamentos atualizados
+    const column = profile?.role === 'barber' ? 'barber_id' : 'client_id';
     const { data, error } = await supabase
       .from('appointments')
       .select(`

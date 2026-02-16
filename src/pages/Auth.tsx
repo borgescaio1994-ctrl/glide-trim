@@ -36,7 +36,7 @@ export default function Auth() {
       if (error) {
         toast.error('Erro ao fazer login com Google');
       }
-      // Note: OAuth redirect will handle navigation
+      // Não mostrar mensagem aqui - o useAuth vai tratar o redirecionamento e mostrar mensagem apropriada
     } catch (error) {
       toast.error('Ocorreu um erro. Tente novamente.');
     } finally {

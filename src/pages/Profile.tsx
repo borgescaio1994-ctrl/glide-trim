@@ -1,243 +1,340 @@
-import { useAuth } from '@/hooks/useAuth';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { User, Mail, Phone, LogOut, Settings, Calendar, Clock, Image, Crown, Camera } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { Camera, Upload, LogOut, Check, Settings, Calendar, Image, Crown, User, Mail, Phone, AlertCircle, Clock, CheckCircle, Edit, RefreshCw, Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useState, useRef } from 'react';
 
 export default function Profile() {
-  const { profile, isAdmin, signOut, user } = useAuth();
+  const { profile, isAdmin, signOut, user, fetchProfile } = useAuth();
   const navigate = useNavigate();
+  
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [newPhone, setNewPhone] = useState('');
+  const [updatingPhone, setUpdatingPhone] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const handleSignOut = async () => {
-    console.log('handleSignOut called');
-    try {
-      console.log('handleSignOut: calling signOut');
-      await signOut();
-      console.log('handleSignOut: signOut completed, showing toast and navigating');
-      toast.success('Você saiu da conta');
-      navigate('/auth');
-    } catch (error) {
-      console.error('Error signing out:', error);
-      toast.error('Erro ao sair da conta');
-    }
+    await signOut();
+    navigate('/');
+    toast.success('Saiu com sucesso');
   };
 
+  const formatPhone = (phone: string | null | undefined) => {
+    if (!phone || typeof phone !== 'string') return '';
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 11) {
+      return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    }
+    return phone;
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile(user.id).finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [user, fetchProfile]);
+
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user) return;
+    if (!event.target.files || !event.target.files[0] || !user) return;
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Por favor, selecione uma imagem válida');
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('A imagem deve ter no máximo 5MB');
-      return;
-    }
+    const file = event.target.files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
 
     setUploading(true);
-
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/avatar.${fileExt}`;
-
-      // Upload to Supabase storage
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, file, { upsert: true });
+        .upload(filePath, file, { upsert: true });
 
-      if (uploadError) {
-        throw uploadError;
-      }
+      if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
-        .getPublicUrl(fileName);
+        .getPublicUrl(filePath);
 
-      // Update profile
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ avatar_url: publicUrl })
         .eq('id', user.id);
 
-      if (updateError) {
-        throw updateError;
-      }
+      if (updateError) throw updateError;
 
-      toast.success('Foto de perfil atualizada com sucesso!');
-      // Refresh profile
-      window.location.reload();
+      await fetchProfile(user.id);
+      toast.success('Foto atualizada com sucesso!');
     } catch (error) {
-      console.error('Error uploading avatar:', error);
-      toast.error('Erro ao fazer upload da foto');
+      console.error('Erro ao fazer upload:', error);
+      toast.error('Erro ao atualizar foto.');
     } finally {
       setUploading(false);
     }
   };
 
-  const getRoleDisplay = () => {
-    if (isAdmin) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary mt-1">
-          <Crown className="w-3 h-3" />
-          Dono
-        </span>
-      );
+  const handleVerifyPhone = async () => {
+    setUpdatingPhone(true);
+    try {
+      const digits = newPhone.replace(/\D/g, '');
+      if (digits.length !== 11) {
+        toast.error('Telefone inválido');
+        return;
+      }
+
+      localStorage.setItem('pending_phone', digits);
+      setEditingPhone(false);
+      
+      navigate('/verify-phone');
+    } catch (error) {
+      console.error('Erro ao preparar telefone:', error);
+      toast.error('Erro ao salvar telefone');
+    } finally {
+      setUpdatingPhone(false);
     }
-    if (profile?.role === 'barber') {
-      return (
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary mt-1">
-          Barbeiro
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground mt-1">
-        Cliente
-      </span>
-    );
   };
+
+  const handleRemovePhone = async () => {
+    if (!user) return;
+    
+    setUpdatingPhone(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ 
+          phone: '',
+          phone_number: null,
+          whatsapp_number: null,
+          is_verified: false,
+          phone_verified: false 
+        })
+        .eq('id', user.id);
+
+      if (!error) {
+        await fetchProfile(user.id);
+        toast.success('Telefone removido com sucesso!');
+      } else {
+        console.error('Erro ao remover telefone:', error);
+        toast.error('Erro ao remover telefone');
+      }
+    } catch (error) {
+      console.error('Erro ao remover telefone:', error);
+      toast.error('Erro ao remover telefone');
+    } finally {
+      setUpdatingPhone(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">Faça login para ver seu perfil</p>
+          <Button onClick={() => navigate('/auth')}>Fazer Login</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const hasPhone = (profile?.phone && profile.phone.trim() !== '') || 
+                  (profile as any)?.phone_number || 
+                  (profile as any)?.whatsapp_number;
+
+  const phoneDisplay = formatPhone(profile?.phone || (profile as any)?.phone_number || (profile as any)?.whatsapp_number);
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="px-5 pt-12 pb-6">
-        <h1 className="text-2xl font-bold text-foreground">Meu Perfil</h1>
-      </header>
+      <div className="max-w-2xl mx-auto p-4 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Meu Perfil</h1>
+          <Button variant="outline" onClick={handleSignOut}>
+            <LogOut className="w-4 h-4 mr-2" />
+            Sair
+          </Button>
+        </div>
 
-      {/* Profile Card */}
-      <div className="px-5 mb-6">
-        <div className="bg-card rounded-2xl p-6 border border-border/50">
-          <div className="flex items-center gap-4 mb-6">
+        {/* Avatar Section */}
+        <div className="bg-card rounded-xl p-6 shadow-sm">
+          <div className="flex items-center gap-4">
             <div className="relative">
-              <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center overflow-hidden">
+              <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden">
                 {profile?.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt={profile.full_name}
+                  <img 
+                    src={profile.avatar_url} 
+                    alt="Avatar" 
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <User className="w-10 h-10 text-primary" />
+                  <User className="w-8 h-8 text-muted-foreground" />
                 )}
               </div>
-              {(profile?.role === 'barber' || isAdmin) && (
-                <>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    className="absolute -bottom-1 -right-1 w-8 h-8 bg-primary rounded-full flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50"
-                  >
-                    <Camera className="w-4 h-4 text-primary-foreground" />
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
-                    className="hidden"
-                  />
-                </>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+              <Button
+                size="sm"
+                className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full p-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Camera className="w-3 h-3" />
+                )}
+              </Button>
+            </div>
+            
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold">{profile?.full_name || 'Carregando...'}</h2>
+              <p className="text-muted-foreground">{profile?.email}</p>
+              {isAdmin && (
+                <div className="flex items-center gap-1 mt-1">
+                  <Crown className="w-4 h-4 text-yellow-500" />
+                  <span className="text-sm text-yellow-500">Administrador</span>
+                </div>
               )}
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-foreground">{profile?.full_name}</h2>
-              {getRoleDisplay()}
+          </div>
+        </div>
+
+        {/* Phone Section */}
+        <div className="bg-card rounded-xl p-6 shadow-sm">
+          <div className="space-y-1">
+            <h3 className="text-lg font-semibold">Telefone</h3>
+          </div>
+          
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+            <div className="flex items-center gap-3">
+              <Phone className="w-5 h-5 text-primary" />
+              <div className="flex flex-col">
+                {editingPhone ? (
+                  <Input
+                    type="tel"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    className="h-8 w-40 text-sm"
+                    placeholder="DDD + Número"
+                    autoFocus
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {phoneDisplay ? (
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-medium ${
+                          (profile?.is_verified || profile?.phone_verified) 
+                            ? 'text-green-600' 
+                            : 'text-foreground'
+                        }`}>
+                          {phoneDisplay}
+                        </span>
+                        {(profile?.is_verified || profile?.phone_verified) && (
+                          <div className="flex items-center gap-1 px-2 py-1 bg-green-100 rounded-full">
+                            <CheckCircle className="w-3 h-3 text-green-600" />
+                            <span className="text-xs text-green-700">Verificado</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Não adicionado</span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <Mail className="w-5 h-5" />
-              <span className="text-sm">{profile?.email}</span>
-            </div>
-            {profile?.phone && (
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <Phone className="w-5 h-5" />
-                <span className="text-sm">{profile.phone}</span>
-              </div>
+          
+          <div className="flex items-center gap-2 mt-3">
+            {editingPhone ? (
+              <>
+                <Button
+                  size="sm"
+                  onClick={handleVerifyPhone}
+                  disabled={updatingPhone}
+                  className="h-8 px-3"
+                >
+                  {updatingPhone ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                  Verificar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingPhone(false);
+                    setNewPhone('');
+                  }}
+                  className="h-8 px-3"
+                >
+                  Cancelar
+                </Button>
+              </>
+            ) : (
+              !hasPhone ? (
+                <Button
+                  size="sm"
+                  onClick={() => navigate('/verify-phone')}
+                  className="h-8 px-3"
+                >
+                  Adicionar
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingPhone(true);
+                      setNewPhone(phoneDisplay || '');
+                    }}
+                    className="h-8 px-3"
+                  >
+                    Editar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleRemovePhone}
+                    disabled={updatingPhone}
+                    className="h-8 px-3 bg-red-600 hover:bg-red-700"
+                  >
+                    {updatingPhone ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Trash2 className="w-3 h-3 mr-1" />}
+                    Excluir
+                  </Button>
+                </>
+              )
             )}
           </div>
         </div>
-      </div>
 
-      {/* Menu Items */}
-      <div className="px-5 space-y-3">
-        {(profile?.role === 'barber' || isAdmin) && (
-          <>
-            <button
-              onClick={() => navigate('/schedule')}
-              className="w-full bg-card rounded-xl p-4 flex items-center gap-4 border border-border/50 hover:bg-card/80 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Clock className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1 text-left">
-                <h3 className="font-medium text-foreground">Horários de Trabalho</h3>
-                <p className="text-sm text-muted-foreground">Configure seus dias e horários</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => navigate('/services')}
-              className="w-full bg-card rounded-xl p-4 flex items-center gap-4 border border-border/50 hover:bg-card/80 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <Settings className="w-5 h-5 text-blue-500" />
-              </div>
-              <div className="flex-1 text-left">
-                <h3 className="font-medium text-foreground">Meus Serviços</h3>
-                <p className="text-sm text-muted-foreground">Gerencie seus serviços oferecidos</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => navigate('/gallery')}
-              className="w-full bg-card rounded-xl p-4 flex items-center gap-4 border border-border/50 hover:bg-card/80 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <Image className="w-5 h-5 text-purple-500" />
-              </div>
-              <div className="flex-1 text-left">
-                <h3 className="font-medium text-foreground">Minha Galeria</h3>
-                <p className="text-sm text-muted-foreground">Adicione fotos dos seus trabalhos</p>
-              </div>
-            </button>
-          </>
-        )}
-
-        <button
-          onClick={() => navigate('/appointments')}
-          className="w-full bg-card rounded-xl p-4 flex items-center gap-4 border border-border/50 hover:bg-card/80 transition-colors"
-        >
-          <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-            <Calendar className="w-5 h-5 text-green-500" />
-          </div>
-          <div className="flex-1 text-left">
-            <h3 className="font-medium text-foreground">Meus Agendamentos</h3>
-            <p className="text-sm text-muted-foreground">Veja seu histórico de atendimentos</p>
-          </div>
-        </button>
-      </div>
-
-      {/* Logout Button */}
-      <div className="px-5 mt-8">
-        <Button
-          onClick={handleSignOut}
-          variant="outline"
-          className="w-full h-12 border-destructive/50 text-destructive hover:bg-destructive/10"
-        >
-          <LogOut className="w-5 h-5 mr-2" />
-          Sair da conta
-        </Button>
+        {/* Appointments Button */}
+        <div className="px-5 space-y-3">
+          <Button 
+            variant="outline" 
+            className="w-full justify-start"
+            onClick={() => navigate('/appointments')}
+          >
+            <Calendar className="w-4 h-4 mr-2" />
+            Meus Agendamentos
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -14,45 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
-      appointments: {
+      agendamentos: {
         Row: {
-          appointment_date: string
-          barber_id: string
-          client_id: string
-          created_at: string | null
-          end_time: string
+          criado_em: string | null
+          data_hora: string | null
           id: string
-          notes: string | null
-          service_id: string
-          start_time: string
-          status: string
-          updated_at: string | null
+          nome_cliente: string | null
+          servico: string | null
+          whatsapp: string | null
         }
         Insert: {
-          appointment_date: string
-          barber_id: string
-          client_id: string
-          created_at?: string | null
-          end_time: string
+          criado_em?: string | null
+          data_hora?: string | null
           id?: string
-          notes?: string | null
-          service_id: string
-          start_time: string
-          status?: string
-          updated_at?: string | null
+          nome_cliente?: string | null
+          servico?: string | null
+          whatsapp?: string | null
         }
         Update: {
-          appointment_date?: string
-          barber_id?: string
-          client_id?: string
-          created_at?: string | null
-          end_time?: string
+          criado_em?: string | null
+          data_hora?: string | null
           id?: string
+          nome_cliente?: string | null
+          servico?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
+      appointments: {
+        Row: {
+          appointment_date: string | null
+          barber_id: string | null
+          client_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          end_time: string | null
+          id: string
+          is_verified: boolean | null
+          notes: string | null
+          phone_number: string | null
+          service_id: string | null
+          start_time: string | null
+          status: string | null
+          updated_at: string | null
+          verification_code: string | null
+          whatsapp_number: string | null
+        }
+        Insert: {
+          appointment_date?: string | null
+          barber_id?: string | null
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: string
+          is_verified?: boolean | null
           notes?: string | null
-          service_id?: string
-          start_time?: string
-          status?: string
+          phone_number?: string | null
+          service_id?: string | null
+          start_time?: string | null
+          status?: string | null
           updated_at?: string | null
+          verification_code?: string | null
+          whatsapp_number?: string | null
+        }
+        Update: {
+          appointment_date?: string | null
+          barber_id?: string | null
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: string
+          is_verified?: boolean | null
+          notes?: string | null
+          phone_number?: string | null
+          service_id?: string | null
+          start_time?: string | null
+          status?: string | null
+          updated_at?: string | null
+          verification_code?: string | null
+          whatsapp_number?: string | null
         }
         Relationships: [
           {
@@ -113,6 +155,8 @@ export type Database = {
       barber_schedules: {
         Row: {
           barber_id: string
+          break_end: string | null
+          break_start: string | null
           created_at: string | null
           day_of_week: number
           end_time: string
@@ -122,6 +166,8 @@ export type Database = {
         }
         Insert: {
           barber_id: string
+          break_end?: string | null
+          break_start?: string | null
           created_at?: string | null
           day_of_week: number
           end_time: string
@@ -131,6 +177,8 @@ export type Database = {
         }
         Update: {
           barber_id?: string
+          break_end?: string | null
+          break_start?: string | null
           created_at?: string | null
           day_of_week?: number
           end_time?: string
@@ -177,27 +225,27 @@ export type Database = {
       }
       phone_verifications: {
         Row: {
-          created_at: string
-          expires_at: string
+          created_at: string | null
+          expires_at: string | null
           id: string
           phone_number: string
-          token: string
+          verification_code: string
           verified_at: string | null
         }
         Insert: {
-          created_at?: string
-          expires_at: string
+          created_at?: string | null
+          expires_at?: string | null
           id?: string
           phone_number: string
-          token: string
+          verification_code: string
           verified_at?: string | null
         }
         Update: {
-          created_at?: string
-          expires_at?: string
+          created_at?: string | null
+          expires_at?: string | null
           id?: string
           phone_number?: string
-          token?: string
+          verification_code?: string
           verified_at?: string | null
         }
         Relationships: []
@@ -207,54 +255,66 @@ export type Database = {
           avatar_url: string | null
           created_at: string | null
           email: string
+          fcm_token: string | null
           full_name: string
           id: string
+          is_verified: boolean | null
           phone: string | null
+          phone_number: string | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string | null
+          verification_code: string | null
+          whatsapp_number: string | null
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string | null
           email: string
+          fcm_token?: string | null
           full_name: string
           id: string
+          is_verified?: boolean | null
           phone?: string | null
+          phone_number?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string | null
+          verification_code?: string | null
+          whatsapp_number?: string | null
         }
         Update: {
           avatar_url?: string | null
           created_at?: string | null
           email?: string
+          fcm_token?: string | null
           full_name?: string
           id?: string
+          is_verified?: boolean | null
           phone?: string | null
+          phone_number?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string | null
+          verification_code?: string | null
+          whatsapp_number?: string | null
         }
         Relationships: []
       }
       registered_barbers: {
         Row: {
-          created_at: string
-          created_by: string | null
+          created_at: string | null
           email: string
           full_name: string
           id: string
           phone: string | null
         }
         Insert: {
-          created_at?: string
-          created_by?: string | null
+          created_at?: string | null
           email: string
           full_name: string
           id?: string
           phone?: string | null
         }
         Update: {
-          created_at?: string
-          created_by?: string | null
+          created_at?: string | null
           email?: string
           full_name?: string
           id?: string
