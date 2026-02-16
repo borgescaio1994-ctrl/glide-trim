@@ -16,11 +16,14 @@ RUN npm install --force
 # Copy source code
 COPY . .
 
-# Debug: Check if build succeeded
-RUN ls -la dist/ || echo "=== DIST NOT FOUND ==="
+# Build application
+RUN npm run build
 
-# Debug: Check package.json scripts
-RUN cat package.json | grep -A 10 "scripts"
+# Install express for static serving
+RUN npm install express
 
-# Start application with Railway PORT environment variable
-CMD ["sh", "-c", "echo '=== STARTING SERVER ON PORT: $PORT ===' && npm run preview -- --port $PORT --host 0.0.0.0 2>&1"]
+# Create simple server file
+RUN echo 'const express = require("express"); const app = express(); const path = require("path"); app.use(express.static(path.join(__dirname, "dist"))); app.get("*", (req, res) => { res.sendFile(path.join(__dirname, "dist", "index.html")); }); const port = process.env.PORT || 3000; app.listen(port, "0.0.0.0", () => { console.log("=== SERVER STARTED ON PORT: " + port + " ==="); });' > server.js
+
+# Start the Express server
+CMD ["node", "server.js"]
