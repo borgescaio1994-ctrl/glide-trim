@@ -20,7 +20,11 @@ COPY . .
 RUN npm run build
 
 # Expose port
-EXPOSE 8080
+EXPOSE 4173
 
-# Start the application
-CMD ["npm", "run", "preview"]
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:4173/ || exit 1
+
+# Start the application on port 4173
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "4173"]
