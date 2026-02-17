@@ -36,27 +36,33 @@ export default function Auth() {
     setIsLoading(true);
 
     try {
-      if (!validateEmail(email)) {
-        toast.error('Por favor, informe um email válido');
-        setIsLoading(false);
-        return;
-      }
-
       if (selectedRole === 'client') {
-        // Cadastro de cliente
-        const { error } = await signUp(email, password, name);
+        // Cadastro de cliente - apenas nome
+        if (!name.trim()) {
+          toast.error('Por favor, informe seu nome');
+          setIsLoading(false);
+          return;
+        }
+
+        // Criar conta temporária para cliente com nome
+        const tempEmail = `${name.toLowerCase().replace(/\s+/g, '.')}@barberpro.local`;
+        const tempPassword = 'temp123';
+        
+        const { error } = await signUp(tempEmail, tempPassword, name);
         if (error) {
-          if (error.message.includes('User already registered')) {
-            toast.error('Email já cadastrado. Faça login.');
-          } else {
-            toast.error(error.message);
-          }
+          toast.error('Erro ao criar conta. Tente novamente.');
         } else {
-          toast.success('Conta criada com sucesso! Verifique seu email.');
+          toast.success('Conta criada com sucesso!');
           navigate('/');
         }
       } else {
         // Login de barbeiro
+        if (!validateEmail(email)) {
+          toast.error('Por favor, informe um email válido');
+          setIsLoading(false);
+          return;
+        }
+
         const { error } = await signIn(email, password);
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
@@ -215,7 +221,7 @@ export default function Auth() {
                   Criar Conta de Cliente
                 </h1>
                 <p className="text-muted-foreground">
-                  Preencha seus dados para criar a conta
+                  Digite seu nome para criar a conta
                 </p>
               </div>
               <form onSubmit={handleSubmit} className="space-y-5">
@@ -234,48 +240,6 @@ export default function Auth() {
                       required
                       className="pl-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
                     />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm text-foreground">
-                    Email
-                  </Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      className="pl-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm text-foreground">
-                    Senha
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="•••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={6}
-                      className="pl-10 pr-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
                   </div>
                 </div>
                 <Button
