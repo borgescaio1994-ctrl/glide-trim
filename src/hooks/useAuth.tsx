@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { 
-        redirectTo: 'https://barberpro.up.railway.app/auth/callback',
+        redirectTo: 'http://localhost:8080/auth/callback',
       },
     });
   };

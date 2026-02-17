@@ -72,6 +72,7 @@ const App = () => {
                   <Route path="/admin" element={<AdminDashboard />} />
                   <Route path="/verify-otp" element={<VerifyOTP />} />
                   <Route path="/verify-phone" element={<VerifyPhone />} />
+                  <Route path="/auth/callback" element={<Index />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
