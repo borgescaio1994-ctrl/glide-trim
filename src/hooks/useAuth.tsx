@@ -83,7 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Para APK, usa deep link configurado no AndroidManifest
     const redirectUrl = isCapacitor 
       ? 'capacitor://barberpro.up.railway.app/auth/callback'
-      : 'capacitor://localhost:8080/auth/callback';
+      : 'http://localhost:8080/auth/callback';
     
     return await supabase.auth.signInWithOAuth({
       provider: 'google',
