@@ -33,6 +33,11 @@ app.get("/api/status", (req, res) => {
   });
 });
 
+// Auth callback route - serve index.html for Supabase OAuth
+app.get("/auth/callback", (req, res) => {
+  res.sendFile(path.join(__dirname, "dist", "index.html"));
+});
+
 // SPA fallback - serve index.html for all non-API routes
 app.use((req, res, next) => {
   // Don't interfere with API routes
