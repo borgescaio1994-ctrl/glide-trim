@@ -80,9 +80,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Detecta se está no APK/Capacitor
     const isCapacitor = Capacitor.isNativePlatform();
     
-    // Para APK, usa deep link configurado no AndroidManifest
+    // Para APK, usa scheme com.barberbuddy.app://
     const redirectUrl = isCapacitor 
-      ? 'capacitor://barberpro.up.railway.app/auth/callback'
+      ? 'com.barberbuddy.app://auth/callback'
       : 'http://localhost:8080/auth/callback';
     
     return await supabase.auth.signInWithOAuth({
