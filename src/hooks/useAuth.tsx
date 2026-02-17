@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Capacitor } from '@capacitor/core';
 import type { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -76,10 +77,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signInWithGoogle = async () => {
+    // Detecta se está no APK/Capacitor
+    const isCapacitor = Capacitor.isNativePlatform();
+    
+    // Para APK, usa deep link configurado no AndroidManifest
+    const redirectUrl = isCapacitor 
+      ? 'capacitor://barberpro.up.railway.app/auth/callback'
+      : 'http://localhost:8080/auth/callback';
+    
     return await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { 
-        redirectTo: 'http://localhost:8080/auth/callback',
+        redirectTo: redirectUrl,
       },
     });
   };

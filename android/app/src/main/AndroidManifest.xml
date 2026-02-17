@@ -29,6 +29,13 @@
                 <data android:scheme="com.barberbuddy.app" />
             </intent-filter>
 
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="barberpro.up.railway.app" android:path="/auth/callback" />
+            </intent-filter>
+
         </activity>
 
         <provider
