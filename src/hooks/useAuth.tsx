@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Capacitor } from '@capacitor/core';
 import type { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -9,9 +8,10 @@ interface AuthContextType {
   isAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
   fetchProfile: (userId: string) => Promise<any>;
   setIsAdmin: (value: boolean) => void;
-  signInWithGoogle: () => Promise<{ error: Error | null }>;
   needsPhoneVerification: boolean;
 }
 
@@ -76,40 +76,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signInWithGoogle = async () => {
+  const signIn = async (email: string, password: string) => {
     try {
-      const isCapacitor = Capacitor.isNativePlatform();
-      
-      // Para APK: usa deep link com.barberbuddy.app
-      // Para web: usa localhost
-      const redirectUrl = isCapacitor 
-        ? 'com.barberbuddy.app://auth/callback'
-        : 'http://localhost:8080/auth/callback';
-      
-      console.log('🔐 Google OAuth - Redirect URL:', redirectUrl);
-      console.log('🔐 Is Capacitor:', isCapacitor);
-      
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { 
-          redirectTo: redirectUrl,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      return { error };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
+  const signUp = async (email: string, password: string, name: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+          },
         },
       });
-
-      if (error) {
-        console.error('❌ Erro no Google OAuth:', error);
-        return { error };
-      }
-
-      console.log('✅ Google OAuth iniciado:', data);
-      return { error: null };
-      
+      return { error };
     } catch (error) {
-      console.error('❌ Erro ao iniciar Google OAuth:', error);
       return { error: error as Error };
     }
   };
@@ -132,10 +123,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       profile, 
       loading, 
       signOut, 
+      signIn,
+      signUp,
       fetchProfile, 
       isAdmin, 
       setIsAdmin, 
-      signInWithGoogle,
       needsPhoneVerification
     }}>
       {children}

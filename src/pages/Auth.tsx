@@ -6,16 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Scissors, User, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, Chrome } from 'lucide-react';
+import { Scissors, User, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export default function Auth() {
   const [step, setStep] = useState<'select-role' | 'auth'>('select-role');
   const [selectedRole, setSelectedRole] = useState<'client' | 'barber' | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { signIn, signUp, signInWithGoogle, user } = useAuth();
+  const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,21 +28,6 @@ export default function Auth() {
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
-  };
-
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true);
-    try {
-      const { error } = await signInWithGoogle();
-      if (error) {
-        toast.error('Erro ao fazer login com Google');
-      }
-      // Não mostrar mensagem aqui - o useAuth vai tratar o redirecionamento e mostrar mensagem apropriada
-    } catch (error) {
-      toast.error('Ocorreu um erro. Tente novamente.');
-    } finally {
-      setIsLoading(false);
-    }
   };
 
 
@@ -56,18 +42,34 @@ export default function Auth() {
         return;
       }
 
-      const { error } = await signIn(email, password);
-      if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          toast.error('Email ou senha incorretos');
-        } else if (error.message.includes('Email not confirmed')) {
-          toast.error('Confirme seu email antes de fazer login. Verifique sua caixa de entrada.');
+      if (selectedRole === 'client') {
+        // Cadastro de cliente
+        const { error } = await signUp(email, password, name);
+        if (error) {
+          if (error.message.includes('User already registered')) {
+            toast.error('Email já cadastrado. Faça login.');
+          } else {
+            toast.error(error.message);
+          }
         } else {
-          toast.error(error.message);
+          toast.success('Conta criada com sucesso! Verifique seu email.');
+          navigate('/');
         }
       } else {
-        toast.success('Login realizado com sucesso!');
-        navigate('/');
+        // Login de barbeiro
+        const { error } = await signIn(email, password);
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            toast.error('Email ou senha incorretos');
+          } else if (error.message.includes('Email not confirmed')) {
+            toast.error('Confirme seu email antes de fazer login. Verifique sua caixa de entrada.');
+          } else {
+            toast.error(error.message);
+          }
+        } else {
+          toast.success('Login realizado com sucesso!');
+          navigate('/');
+        }
       }
     } catch (error) {
       toast.error('Ocorreu um erro. Tente novamente.');
@@ -210,30 +212,87 @@ export default function Auth() {
             <>
               <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold text-foreground mb-2">
-                  Login do Cliente
+                  Criar Conta de Cliente
                 </h1>
                 <p className="text-muted-foreground">
-                  Escolha como deseja entrar
+                  Preencha seus dados para criar a conta
                 </p>
               </div>
-              <div className="space-y-3">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-sm text-foreground">
+                    Nome Completo
+                  </Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="Seu nome completo"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                      className="pl-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm text-foreground">
+                    Email
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="pl-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-sm text-foreground">
+                    Senha
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="•••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className="pl-10 pr-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
                 <Button
-                  type="button"
-                  onClick={handleGoogleSignIn}
+                  type="submit"
                   disabled={isLoading}
-                  variant="outline"
-                  className="w-full h-12 border-border hover:bg-muted/50 text-foreground font-medium rounded-xl"
+                  className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl"
                 >
                   {isLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <>
-                      <Chrome className="w-5 h-5 mr-3" />
-                      Continuar com Google
+                      Criar Conta
+                      <ArrowRight className="w-5 h-5 ml-2" />
                     </>
                   )}
                 </Button>
-              </div>
+              </form>
               <div className="mt-6 text-center">
                 <button
                   onClick={() => {
