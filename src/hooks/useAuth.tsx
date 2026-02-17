@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Sanitização rigorosa para evitar valores null no Guard
         const cleanProfile = {
           ...data,
-          is_verified: data.is_verified === true || data.phone_verified === true, 
+          is_verified: data.is_verified === true, 
           phone: data.phone || data.phone_number || data.whatsapp_number || "",
         };
         
@@ -77,20 +77,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signInWithGoogle = async () => {
-    // Detecta se está no APK/Capacitor
-    const isCapacitor = Capacitor.isNativePlatform();
-    
-    // Para APK, usa scheme com.barberbuddy.app://
-    const redirectUrl = isCapacitor 
-      ? 'com.barberbuddy.app://auth/callback'
-      : 'http://localhost:8080/auth/callback';
-    
-    return await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { 
-        redirectTo: redirectUrl,
-      },
-    });
+    try {
+      const isCapacitor = Capacitor.isNativePlatform();
+      
+      // Para APK: usa deep link com.barberbuddy.app
+      // Para web: usa localhost
+      const redirectUrl = isCapacitor 
+        ? 'com.barberbuddy.app://auth/callback'
+        : 'http://localhost:8080/auth/callback';
+      
+      console.log('🔐 Google OAuth - Redirect URL:', redirectUrl);
+      console.log('🔐 Is Capacitor:', isCapacitor);
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { 
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        },
+      });
+
+      if (error) {
+        console.error('❌ Erro no Google OAuth:', error);
+        return { error };
+      }
+
+      console.log('✅ Google OAuth iniciado:', data);
+      return { error: null };
+      
+    } catch (error) {
+      console.error('❌ Erro ao iniciar Google OAuth:', error);
+      return { error: error as Error };
+    }
   };
 
   const signOut = async () => {
@@ -103,7 +124,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Calcula se o usuário precisa verificar telefone
   const needsPhoneVerification = user && !loading && profile && 
-    !(profile.is_verified === true || profile.phone_verified === true);
+    !(profile.is_verified === true);
 
   return (
     <AuthContext.Provider value={{ 
