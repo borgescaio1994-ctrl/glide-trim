@@ -34,7 +34,7 @@ app.get("/api/status", (req, res) => {
 });
 
 // SPA fallback - serve index.html for all non-API routes
-app.get("*", (req, res) => {
+app.get("/*", (req, res) => {
   // Don't interfere with API routes
   if (!req.path.startsWith("/api")) {
     res.sendFile(path.join(__dirname, "dist", "index.html"));
