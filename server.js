@@ -8,20 +8,57 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // Serve static files from dist
-app.use(express.static(path.join(__dirname, "dist")));
+app.use(express.static(path.join(__dirname, "dist"), {
+  index: "index.html",
+  maxAge: "1y"
+}));
 
 // Health check endpoint
 app.get("/health", (req, res) => {
-  res.status(200).send("OK");
+  res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
-// SPA fallback - serve index.html for all routes
-app.get("/*", (req, res) => {
-  res.sendFile(path.join(__dirname, "dist", "index.html"));
+// API routes
+app.get("/api/status", (req, res) => {
+  res.json({ 
+    app: "BarberPro", 
+    version: "1.0.0",
+    status: "running",
+    port: port 
+  });
+});
+
+// SPA fallback - serve index.html for all non-API routes
+app.get("*", (req, res) => {
+  // Don't interfere with API routes
+  if (!req.path.startsWith("/api")) {
+    res.sendFile(path.join(__dirname, "dist", "index.html"));
+  } else {
+    res.status(404).json({ error: "API endpoint not found" });
+  }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error("Server error:", err);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
 });
 
 // Start server
 app.listen(port, "0.0.0.0", () => {
-  console.log("=== SERVER STARTED ON PORT: " + port + " ===");
+  console.log("=== BARBERPRO SERVER STARTED ===");
+  console.log("Port:", port);
+  console.log("Environment:", process.env.NODE_ENV || "development");
+  console.log("Static files:", path.join(__dirname, "dist"));
+  console.log("================================");
 });
