@@ -199,11 +199,18 @@ export default function BookAppointment() {
   const handleBook = async () => {
     if (!user || !selectedDate || !selectedTime || !service || isBookingInProgress) return;
     
+    // Verificar se o telefone está verificado
+    if (!profile?.is_verified) {
+      toast.error('Você precisa verificar seu telefone para fazer agendamentos. Vá para a página de perfil.');
+      navigate('/profile');
+      return;
+    }
+    
     setIsBookingInProgress(true);
     setBooking(true);
     
     try {
-      // Verificar se o horário ainda está disponível
+      // Verificar se o Horário ainda está disponível
       const dayAppointments = appointments.filter(a => a.appointment_date === selectedDate);
       const slotStart = parseInt(selectedTime.split(':')[0]) * 60 + parseInt(selectedTime.split(':')[1]);
       const slotEnd = slotStart + service.duration_minutes;
@@ -211,11 +218,13 @@ export default function BookAppointment() {
       const isOccupied = dayAppointments.some(apt => {
         const aptStart = parseInt(apt.start_time.split(':')[0]) * 60 + parseInt(apt.start_time.split(':')[1]);
         const aptEnd = parseInt(apt.end_time.split(':')[0]) * 60 + parseInt(apt.end_time.split(':')[1]);
+        
+        // Verificar sobreposição
         return (slotStart < aptEnd && slotEnd > aptStart);
       });
       
       if (isOccupied) {
-        toast.error('Este horário acabou de ser ocupado. Escolha outro horário.');
+        toast.error('Este Horário acabou de ser ocupado. Escolha outro Horário.');
         return;
       }
       
