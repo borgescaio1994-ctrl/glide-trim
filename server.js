@@ -34,12 +34,12 @@ app.get("/api/status", (req, res) => {
 });
 
 // SPA fallback - serve index.html for all non-API routes
-app.get("/*", (req, res) => {
+app.use((req, res, next) => {
   // Don't interfere with API routes
-  if (!req.path.startsWith("/api")) {
+  if (!req.path.startsWith("/api") && req.method === "GET") {
     res.sendFile(path.join(__dirname, "dist", "index.html"));
   } else {
-    res.status(404).json({ error: "API endpoint not found" });
+    next();
   }
 });
 
