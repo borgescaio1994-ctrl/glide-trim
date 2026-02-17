@@ -79,11 +79,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { 
-        redirectTo: 'https://barberpro.up.railway.app/',
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        }
+        redirectTo: 'https://barberpro.up.railway.app',
+        skipBrowserRedirect: false,
       },
     });
   };
