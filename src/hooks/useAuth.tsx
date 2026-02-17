@@ -23,6 +23,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Função para salvar sessão no localStorage
+  const saveSessionToStorage = (session: any) => {
+    try {
+      localStorage.setItem('barberpro_session', JSON.stringify(session));
+      localStorage.setItem('barberpro_session_timestamp', Date.now().toString());
+    } catch (error) {
+      console.error('Erro ao salvar sessão no localStorage:', error);
+    }
+  };
+
+  // Função para recuperar sessão do localStorage
+  const getSessionFromStorage = () => {
+    try {
+      const session = localStorage.getItem('barberpro_session');
+      const timestamp = localStorage.getItem('barberpro_session_timestamp');
+      
+      if (session && timestamp) {
+        const sessionAge = Date.now() - parseInt(timestamp);
+        const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 dias
+        
+        if (sessionAge < maxAge) {
+          return JSON.parse(session);
+        } else {
+          // Limpar sessão expirada
+          localStorage.removeItem('barberpro_session');
+          localStorage.removeItem('barberpro_session_timestamp');
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao recuperar sessão do localStorage:', error);
+    }
+    return null;
+  };
+
   const fetchProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -52,23 +86,54 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
+    const initializeAuth = async () => {
+      setLoading(true);
+      
+      // Primeiro, tentar recuperar do localStorage
+      const cachedSession = getSessionFromStorage();
+      if (cachedSession) {
+        setUser(cachedSession.user);
+        if (cachedSession.user) {
+          await fetchProfile(cachedSession.user.id);
+        }
       }
-    });
+      
+      // Depois, verificar com Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        setUser(session.user);
+        saveSessionToStorage(session);
+        await fetchProfile(session.user.id);
+      } else {
+        // Se não há sessão no Supabase, limpar cache
+        localStorage.removeItem('barberpro_session');
+        localStorage.removeItem('barberpro_session_timestamp');
+        setUser(null);
+        setProfile(null);
+      }
+      
+      setLoading(false);
+    };
+
+    initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('🔄 Auth state change:', event, session?.user?.id);
+        
         setUser(session?.user ?? null);
-        if (session?.user) {
+        
+        if (session) {
+          saveSessionToStorage(session);
           await fetchProfile(session.user.id);
         } else {
+          // Limpar cache quando deslogar
+          localStorage.removeItem('barberpro_session');
+          localStorage.removeItem('barberpro_session_timestamp');
           setProfile(null);
         }
+        
         setLoading(false);
       }
     );
@@ -108,6 +173,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     setLoading(true);
     await supabase.auth.signOut();
+    
+    // Limpar cache local
+    localStorage.removeItem('barberpro_session');
+    localStorage.removeItem('barberpro_session_timestamp');
+    
     setUser(null);
     setProfile(null);
     setLoading(false);
