@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ShieldCheck, MessageCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function VerifyPhone() {
-  const { user, fetchProfile } = useAuth();
+  const { user, fetchProfile, fetchProfileImmediate } = useAuth();
   const navigate = useNavigate();
   
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -20,7 +21,7 @@ export default function VerifyPhone() {
 
   useEffect(() => {
     if (user && !user.user_metadata?.phone) {
-      fetchProfile();
+      fetchProfile(user.id);
     }
   }, [user, fetchProfile]);
 
@@ -32,112 +33,209 @@ export default function VerifyPhone() {
     };
   }, []);
 
+  // Botão para pular verificação
+  const handleSkipVerification = () => {
+    toast.info('Você pode verificar seu telefone mais tarde no perfil.');
+    navigate('/');
+  };
+
   const handleSendCode = async () => {
     if (verifyingPhone || !phoneNumber) return;
     setVerifyingPhone(true);
-    
-    // Formatação do número: remove tudo que não é dígito e adiciona DDI 55
-    const digits = phoneNumber.replace(/\D/g, '');
-    const fullPhone = digits.length === 11 ? `55${digits}` : digits;
-    
-    // Gera código de 6 dígitos
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedCode(code);
 
     try {
-      console.log('🔵 Enviando código para:', fullPhone, 'código:', code);
+      // Formatação e validação do número de telefone
+      const digits = phoneNumber.replace(/\D/g, '');
+      const fullPhone = digits.length === 11 ? `55${digits}` : digits;
       
-      // 1. Limpeza preventiva para evitar erro de duplicidade
-      await supabase.from('phone_verifications').delete().eq('phone_number', fullPhone);
+      // Validação básica do número
+      if (digits.length < 10 || digits.length > 11) {
+        console.error('❌ Número de WhatsApp inválido');
+        toast.error('Número deve ter 10 ou 11 dígitos (DDD + número)');
+        setVerifyingPhone(false);
+        return;
+      }
+      
+      console.log('🔵 Número formatado para WhatsApp:', fullPhone);
+      
+      // Gera código de 6 dígitos
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedCode(code);
 
-      // 2. Insere o novo código no banco
-      const { error: dbError } = await supabase.from('phone_verifications').insert({
-        phone_number: fullPhone,
-        verification_code: code,
-        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-      });
+      // 1. LIMPAR REGISTROS ANTIGOS DESTE USUÁRIO
+      console.log('🔥 [LIMPEZA] Removendo registros antigos...');
+      const { error: cleanError } = await supabase
+        .from('phone_verifications')
+        .delete()
+        .eq('phone_number', fullPhone);
 
-      if (dbError) throw dbError;
+      if (cleanError) {
+        console.log('🔥 [LIMPEZA] Erro ao limpar (não crítico):', cleanError);
+      }
 
-      // 3. Tenta enviar via WhatsApp (se a função existir)
-      try {
-        const { error: funcError } = await supabase.functions.invoke('send-whatsapp-verification', { 
-          body: { phone: fullPhone, code } 
+      // 2. INSERIR NOVO REGISTRO NA TABELA EXISTENTE
+      console.log('🔥 [INSERT] Inserindo nova solicitação...');
+      const { error: insertError } = await supabase
+        .from('phone_verifications')
+        .insert({
+          phone_number: fullPhone,
+          verification_code: code,
+          expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString()
         });
 
-        if (funcError) {
-          console.warn('Função WhatsApp não disponível, mas código foi salvo:', funcError);
-          // Não falha completamente se a função não existir
+      if (insertError) {
+        console.error('❌ Erro ao salvar solicitação:', insertError);
+        toast.error('Erro ao gerar código. Tente novamente.');
+        setVerifyingPhone(false);
+        return;
+      }
+
+      console.log('✅ Solicitação de verificação criada com sucesso!');
+      console.log('✅ Código gerado:', code);
+      
+      // 3. Envia código via WhatsApp usando fetch direto para n8n
+      try {
+        const webhookUrl = 'http://72.60.159.183:5678/webhook/64d8e09c-03a0-4d2c-8ada-141e0e26aac3';
+        const horario = new Date().toLocaleString('pt-BR', { 
+          timeZone: 'America/Sao_Paulo',
+          dateStyle: 'short',
+          timeStyle: 'short'
+        });
+
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phone: fullPhone,
+            horario: horario,
+            code: code,
+            action: 'send_verification_code'
+          }),
+        });
+
+        if (response.ok) {
+          console.log('✅ Código enviado via WhatsApp com sucesso!');
+        } else {
+          console.warn('⚠️ Erro ao enviar WhatsApp, mas código foi salvo');
         }
       } catch (funcError) {
-        console.warn('Função WhatsApp não disponível, mas código foi salvo');
-        // Não falha completamente se a função não existir
+        console.warn('⚠️ Erro ao enviar WhatsApp, mas código foi salvo:', funcError);
       }
 
       localStorage.setItem('pending_phone', fullPhone);
       toast.success('Código enviado com sucesso!');
       setCodeSent(true);
-      console.log('✅ Código enviado com sucesso!');
     } catch (error) {
-      console.error("Erro ao enviar:", error);
+      console.error("Erro ao enviar código:", error);
       toast.error('Erro ao enviar código. Tente novamente.');
-    } finally { 
-      setVerifyingPhone(false); 
+    } finally {
+      setVerifyingPhone(false);
     }
   };
 
   const handleVerifyCode = async () => {
-    if (verifyingCode || !user?.id) return;
+    console.log('🔥 [INÍCIO] VERIFICAÇÃO DE CÓDIGO - NOVA LÓGICA');
+    console.log('🔥 [ESTADO] verifyingCode:', verifyingCode);
+    console.log('🔥 [USUÁRIO] user?.id:', user?.id);
+    
+    if (verifyingCode || !user?.id) {
+      console.log('🔥 [BLOQUEIO] Retornando early');
+      return;
+    }
+    
     setVerifyingCode(true);
 
     try {
-      if (verificationCode.trim() === generatedCode) {
-        const fullPhone = localStorage.getItem('pending_phone') || phoneNumber.replace(/\D/g, '');
-        
-        console.log('🔵 Código correto! Salvando telefone:', fullPhone);
-        console.log('🔵 User ID:', user?.id);
-        
-        // Salva o número no perfil
-        const { error } = await supabase
-          .from('profiles')
-          .update({ 
-            phone: fullPhone,
-            phone_number: fullPhone,
-            whatsapp_number: fullPhone
-          })
-          .eq('id', user.id);
-
-        console.log('🔵 Resultado do update:', error);
-
-        if (!error) {
-          console.log('✅ Perfil atualizado com sucesso!');
-          localStorage.removeItem('pending_phone');
-          toast.success('WhatsApp verificado com sucesso!');
-          
-          // Verifica se veio do agendamento para voltar para lá
-          const returnToBooking = sessionStorage.getItem('returnToBooking');
-          if (returnToBooking) {
-            console.log('🔵 Retornando para agendamento...');
-            sessionStorage.removeItem('returnToBooking');
-            navigate(returnToBooking);
-          } else {
-            console.log('🔵 Redirecionando para /profile...');
-            navigate('/profile');
-          }
-        } else {
-          console.error("Erro ao salvar perfil:", error);
-          toast.error('Erro ao salvar número. Tente novamente.');
-        }
-      } else {
-        console.log('🔴 Código incorreto:', verificationCode, 'esperado:', generatedCode);
-        toast.error('Código incorreto. Tente novamente.');
+      const fullPhone = localStorage.getItem('pending_phone') || phoneNumber.replace(/\D/g, '');
+      const cleanCode = verificationCode.trim();
+      
+      console.log('🔥 [DADOS] fullPhone:', fullPhone);
+      console.log('🔥 [DADOS] cleanCode:', cleanCode);
+      
+      // 1. VALIDAÇÃO BÁSICA
+      if (!cleanCode || cleanCode.length !== 6) {
+        console.log('🔥 [ERRO] Código inválido:', cleanCode);
+        toast.error('Digite o código de 6 dígitos');
+        return;
       }
+      
+      // 2. BUSCAR REGISTRO DO USUÁRIO
+      console.log('🔥 [BUSCA] Buscando registro de verificação...');
+      const { data: verificationRecord, error: fetchError } = await supabase
+        .from('phone_verifications')
+        .select('*')
+        .eq('phone_number', fullPhone)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (fetchError) {
+        console.log('🔥 [ERRO] Registro não encontrado:', fetchError);
+        toast.error('Código não encontrado. Solicite um novo código.');
+        return;
+      }
+
+      console.log('🔥 [SUCESSO] Registro encontrado:', verificationRecord);
+      
+      // 3. VERIFICAR EXPIRAÇÃO
+      if (new Date() > new Date(verificationRecord.expires_at)) {
+        console.log('🔥 [ERRO] Código expirado!');
+        toast.error('Código expirado. Solicite um novo código.');
+        return;
+      }
+      
+      // 4. COMPARAR CÓDIGOS
+      if (cleanCode !== verificationRecord.verification_code) {
+        console.log('🔥 [ERRO] Código incorreto!');
+        console.log('🔥 [DIGITADO]', cleanCode);
+        console.log('🔥 [ESPERADO]', verificationRecord.verification_code);
+        toast.error('Código incorreto. Tente novamente.');
+        return;
+      }
+
+      console.log('✅ [SUCESSO] Código correto!');
+
+      // 5. ATUALIZAR PERFIL DO USUÁRIO
+      console.log('🔥 [PERFIL] Atualizando perfil do usuário...');
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ 
+          phone_number: fullPhone,
+          is_verified: true
+        })
+        .eq('id', user.id);
+
+      if (profileError) {
+        console.log('🔥 [ERRO] Erro ao atualizar perfil:', profileError);
+        toast.error('Erro ao salvar número. Tente novamente.');
+        return;
+      }
+
+      // 6. LIMPAR REGISTRO DE VERIFICAÇÃO
+      console.log('🔥 [LIMPEZA] Removendo registro de verificação...');
+      await supabase
+        .from('phone_verifications')
+        .delete()
+        .eq('id', verificationRecord.id);
+
+      console.log('✅ [SUCESSO] TUDO CERTO!');
+      
+      // 6. LIMPAR E REDIRECIONAR
+      localStorage.removeItem('pending_phone');
+      toast.success('WhatsApp verificado com sucesso!');
+      
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
+      
     } catch (error) {
-      console.error("Erro na verificação:", error);
+      console.log('🔥 [ERRO] Erro inesperado:', error);
       toast.error('Erro ao verificar. Tente novamente.');
     } finally {
-      console.log('🔵 Finalizando verificação, setVerifyingCode(false)');
       setVerifyingCode(false);
+      console.log('🔥 [FIM] Processo finalizado');
     }
   };
 
@@ -157,12 +255,13 @@ export default function VerifyPhone() {
           {!codeSent ? (
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">Seu WhatsApp</label>
+                <Label htmlFor="phone" className="text-sm font-medium mb-2 block">Seu WhatsApp</Label>
                 <Input
+                  id="phone"
                   type="tel"
                   placeholder="DDD + Número"
                   value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
                   className="h-11"
                 />
               </div>
@@ -230,6 +329,14 @@ export default function VerifyPhone() {
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Voltar
+                </Button>
+                
+                <Button 
+                  variant="ghost"
+                  onClick={handleSkipVerification}
+                  className="w-full h-11 text-muted-foreground hover:text-foreground"
+                >
+                  Verificar Depois
                 </Button>
               </div>
             </div>

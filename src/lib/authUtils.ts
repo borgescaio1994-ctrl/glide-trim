@@ -1,43 +1,43 @@
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Valida o código de autenticação comparando com o verification_code armazenado no perfil do usuário.
- *
- * @param phoneNumber - Número de telefone limpo (só números)
- * @param inputCode - Código digitado pelo usuário
- * @returns Promise<boolean> - true se o código for válido, false caso contrário
+ * Valida o código e retorna booleano
+ * A gravação do perfil é feita pelo fetchProfileImmediate no useAuth
  */
-export async function validateAuthCode(phoneNumber: string, inputCode: string): Promise<boolean> {
+export async function validateAuthCode(phoneNumber: string, inputCode: string, userId?: string): Promise<boolean> {
+  console.log('🔍 [authUtils] Iniciando validação rigorosa...');
+  
   try {
-    // Buscar o perfil onde o telefone corresponde
+    // 1. Busca o código mais recente
     const { data, error } = await supabase
-      .from('profiles')
-      .select('verification_code')
-      .eq('phone', phoneNumber)
-      .single();
+      .from('phone_verifications')
+      .select('verification_code, expires_at')
+      .eq('phone_number', phoneNumber)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (error) {
-      console.error('Erro ao buscar perfil para validação:', error);
+    if (error || !data) {
+      console.error('❌ [authUtils] Código não encontrado no banco:', error);
       return false;
     }
 
-    if (!data) {
-      console.log('Perfil não encontrado para o telefone:', phoneNumber);
+    // 2. Checa expiração
+    if (new Date(data.expires_at) < new Date()) {
+      console.error('❌ [authUtils] Código expirado');
       return false;
     }
 
-    // Comparar o código
+    // 3. Valida o código digitado
     const isValid = data.verification_code === inputCode;
-
+    
     if (isValid) {
-      console.log('Código de autenticação válido para telefone:', phoneNumber);
-    } else {
-      console.log('Código de autenticação inválido para telefone:', phoneNumber);
+      console.log('✅ [authUtils] Código correto! A gravação do perfil será feita pelo fetchProfileImmediate.');
     }
-
+    
     return isValid;
   } catch (error) {
-    console.error('Erro inesperado na validação do código:', error);
+    console.error('❌ [authUtils] Erro inesperado:', error);
     return false;
   }
 }

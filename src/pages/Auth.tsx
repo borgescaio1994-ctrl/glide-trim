@@ -1,84 +1,63 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Scissors, User, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Scissors, User, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, Phone } from 'lucide-react';
 
 export default function Auth() {
-  const [step, setStep] = useState<'select-role' | 'auth'>('select-role');
+  const [step, setStep] = useState<'select-role' | 'auth' | 'signup'>('select-role');
   const [selectedRole, setSelectedRole] = useState<'client' | 'barber' | null>(null);
   const [email, setEmail] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
-      navigate('/');
-    }
+    if (user) navigate('/');
   }, [user, navigate]);
 
-  const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      if (selectedRole === 'client') {
-        // Cadastro de cliente - apenas nome
-        if (!name.trim()) {
-          toast.error('Por favor, informe seu nome');
-          setIsLoading(false);
-          return;
-        }
-
-        // Criar conta temporária para cliente com nome
-        const tempEmail = `${name.toLowerCase().replace(/\s+/g, '.')}@barberpro.local`;
-        const tempPassword = 'temp123';
-        
-        const { error } = await signUp(tempEmail, tempPassword, name);
-        if (error) {
-          toast.error('Erro ao criar conta. Tente novamente.');
-        } else {
-          toast.success('Conta criada com sucesso!');
-          navigate('/');
-        }
-      } else {
-        // Login de barbeiro
-        if (!validateEmail(email)) {
-          toast.error('Por favor, informe um email válido');
-          setIsLoading(false);
-          return;
-        }
-
+      if (step === 'auth') {
         const { error } = await signIn(email, password);
         if (error) {
-          if (error.message.includes('Invalid login credentials')) {
-            toast.error('Email ou senha incorretos');
-          } else if (error.message.includes('Email not confirmed')) {
-            toast.error('Confirme seu email antes de fazer login. Verifique sua caixa de entrada.');
-          } else {
-            toast.error(error.message);
-          }
+          toast.error(error.message.includes('Invalid') ? 'Email ou senha incorretos' : error.message);
         } else {
-          toast.success('Login realizado com sucesso!');
+          toast.success('Login realizado!');
           navigate('/');
         }
+      } else if (step === 'signup') {
+        if (!name.trim() || !phone.trim()) return toast.error('Preencha todos os campos');
+        if (email !== confirmEmail) return toast.error('Os emails não coincidem');
+        if (password !== confirmPassword) return toast.error('As senhas não coincidem');
+        
+        const cleanPhone = phone.replace(/\D/g, '');
+        if (cleanPhone.length < 10) return toast.error('Telefone inválido');
+
+        const { error } = await signUp(email, password, name, cleanPhone);
+        if (error) {
+          toast.error(error.message);
+        } else {
+          toast.success('Conta criada! Verifique seu WhatsApp.');
+          setTimeout(() => navigate('/verify-phone'), 1500);
+        }
       }
-    } catch (error) {
-      toast.error('Ocorreu um erro. Tente novamente.');
+    } catch (err) {
+      toast.error('Erro inesperado.');
     } finally {
       setIsLoading(false);
     }
@@ -86,190 +65,97 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="p-6">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-        >
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Scissors className="w-5 h-5 text-primary" />
-          </div>
-          <span className="text-xl font-semibold text-foreground">BarberPro</span>
-        </button>
+      <header className="p-6 flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <Scissors className="w-5 h-5 text-primary" />
+        </div>
+        <span className="text-xl font-semibold">BarberPro</span>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 flex items-center justify-center px-6 pb-12">
-        <div className="w-full max-w-md animate-fade-in">
+      <main className="flex-1 flex items-center justify-center px-6">
+        <div className="w-full max-w-md space-y-8 animate-fade-in">
           {step === 'select-role' ? (
-            <>
-              <div className="text-center mb-8">
-                <h1 className="text-3xl font-bold text-foreground mb-2">
-                  Bem-vindo ao BarberPro
-                </h1>
-                <p className="text-muted-foreground">
-                  Escolha seu tipo de conta para continuar
-                </p>
-              </div>
+            <div className="text-center space-y-6">
+              <h1 className="text-3xl font-bold">Bem-vindo</h1>
               <div className="space-y-4">
-                <Button
-                  onClick={() => {
-                    setSelectedRole('client');
-                    setStep('auth');
-                  }}
-                  className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl"
-                >
-                  Sou Cliente
-                </Button>
-                <Button
-                  onClick={() => {
-                    setSelectedRole('barber');
-                    setStep('auth');
-                  }}
-                  variant="outline"
-                  className="w-full h-12 border-border hover:bg-muted/50 text-foreground font-medium rounded-xl"
-                >
-                  Sou Barbeiro
-                </Button>
+                <Button onClick={() => { setSelectedRole('client'); setStep('auth'); }} className="w-full h-12 rounded-xl">Sou Cliente</Button>
+                <Button onClick={() => { setSelectedRole('barber'); setStep('auth'); }} variant="outline" className="w-full h-12 rounded-xl">Sou Barbeiro</Button>
               </div>
-            </>
-          ) : step === 'auth' && selectedRole === 'barber' ? (
-            <>
-              <div className="text-center mb-8">
-                <h1 className="text-3xl font-bold text-foreground mb-2">
-                  Login do Barbeiro
-                </h1>
-                <p className="text-muted-foreground">
-                  Entre com seu email e senha
-                </p>
+              <p className="text-sm text-muted-foreground">Não tem conta? <button onClick={() => setStep('signup')} className="text-primary font-medium">Criar uma</button></p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h1 className="text-3xl font-bold">{step === 'auth' ? 'Login' : 'Criar Conta'}</h1>
+                <p className="text-muted-foreground">{selectedRole === 'barber' ? 'Acesso Profissional' : 'Acesso Cliente'}</p>
               </div>
-              <form onSubmit={handleSubmit} className="space-y-5">
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {step === 'signup' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Nome Completo</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                        <Input className="pl-10" value={name} onChange={e => setName(e.target.value)} required />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Telefone (WhatsApp)</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                        <Input className="pl-10" placeholder="(11) 99999-9999" value={phone} onChange={e => setPhone(e.target.value)} required />
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm text-foreground">
-                    Email
-                  </Label>
+                  <Label>Email</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      className="pl-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
-                    />
+                    <Mail className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                    <Input className="pl-10" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
                   </div>
                 </div>
+
+                {step === 'signup' && (
+                  <div className="space-y-2">
+                    <Label>Confirmar Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                      <Input className="pl-10" type="email" value={confirmEmail} onChange={e => setConfirmEmail(e.target.value)} required />
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm text-foreground">
-                    Senha
-                  </Label>
+                  <Label>Senha</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={6}
-                      className="pl-10 pr-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    >
+                    <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                    <Input className="pl-10 pr-10" type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} required />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-muted-foreground">
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
                 </div>
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <>
-                      Entrar
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </>
-                  )}
-                </Button>
-              </form>
-              <div className="mt-6 text-center">
-                <button
-                  onClick={() => {
-                    setStep('select-role');
-                    setSelectedRole(null);
-                  }}
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                >
-                  Voltar
-                </button>
-              </div>
-            </>
-          ) : step === 'auth' && selectedRole === 'client' ? (
-            <>
-              <div className="text-center mb-8">
-                <h1 className="text-3xl font-bold text-foreground mb-2">
-                  Criar Conta de Cliente
-                </h1>
-                <p className="text-muted-foreground">
-                  Digite seu nome para criar a conta
-                </p>
-              </div>
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm text-foreground">
-                    Nome Completo
-                  </Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder="Seu nome completo"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      required
-                      className="pl-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
-                    />
+
+                {step === 'signup' && (
+                  <div className="space-y-2">
+                    <Label>Confirmar Senha</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                      <Input className="pl-10" type={showPassword ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
+                    </div>
                   </div>
-                </div>
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <>
-                      Criar Conta
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </>
-                  )}
+                )}
+
+                <Button disabled={isLoading} className="w-full h-12 rounded-xl">
+                  {isLoading ? <Loader2 className="animate-spin" /> : (step === 'auth' ? 'Entrar' : 'Cadastrar')}
                 </Button>
               </form>
-              <div className="mt-6 text-center">
-                <button
-                  onClick={() => {
-                    setStep('select-role');
-                    setSelectedRole(null);
-                  }}
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                >
-                  Voltar
-                </button>
-              </div>
-            </>
-          ) : null}
+              <button onClick={() => setStep('select-role')} className="w-full text-sm text-muted-foreground">Voltar</button>
+            </div>
+          )}
         </div>
       </main>
     </div>
