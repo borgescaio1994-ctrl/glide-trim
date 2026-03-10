@@ -5,22 +5,20 @@ import { validateAuthCode } from '@/lib/authUtils';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Smartphone, MessageSquare, ShieldCheck, Loader2, MessageCircle } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Loader2, MessageCircle } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function VerifyPhone() {
-  const { user, fetchProfileImmediate } = useAuth();
+  const { user, fetchProfile } = useAuth();
   const navigate = useNavigate();
-  
+
   const [phoneNumber, setPhoneNumber] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [verifyingPhone, setVerifyingPhone] = useState(false);
   const [verifyingCode, setVerifyingCode] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState('');
 
-  // Verificar se já tem telefone no localStorage
   useEffect(() => {
     const pendingPhone = localStorage.getItem('pending_phone');
     if (pendingPhone) {
@@ -36,45 +34,33 @@ export default function VerifyPhone() {
     }
 
     setVerifyingPhone(true);
-    
     try {
-      // Gerar código de 6 dígitos
       const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedCode(code);
-
-      // Formatar telefone
       const digits = phoneNumber.replace(/\D/g, '');
       const fullPhone = digits.length === 11 ? `55${digits}` : digits;
 
-      // Salvar telefone no localStorage
-      localStorage.setItem('pending_phone', phoneNumber);
+      localStorage.setItem('pending_phone', fullPhone);
 
-      console.log('📱 Enviando código:', { phone: fullPhone, code });
-      
-      // Chamar Edge Function
-      const response = await fetch('https://rubvkpxvgffmnloaxbqa.supabase.co/functions/v1/send-whatsapp-verification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YnZrcHh2Z2ZtbmxvYXhicWEiLCJ0eXBlIjoiYXBpIiwicm9sZSI6ImFub24iLCJhdWQiOlsidXJsIiwidXJsLmFwaSIsInVybC5mdW5jdGlvbiJdLCJleHAiOjE5NzQ4MDI4ODJ9.7p_qxQa3QkZQIGxLjKz3vHkW8mNqRrNqRrNqRrNqRrNq'
-        },
-        body: JSON.stringify({
-          phone: fullPhone,
-          code: code
-        })
+      await supabase.from('phone_verifications').delete().eq('phone_number', fullPhone);
+      const { error: insertErr } = await supabase.from('phone_verifications').insert({
+        phone_number: fullPhone,
+        verification_code: code,
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
       });
+      if (insertErr) throw insertErr;
 
-      if (response.ok) {
-        setCodeSent(true);
-        toast.success('Código enviado para seu WhatsApp!');
-      } else {
-        // Fallback: mostrar código na tela
-        setCodeSent(true);
-        toast.warning('Use o código na tela: ' + code);
+      try {
+        await supabase.functions.invoke('send-whatsapp-verification', {
+          body: { phone: fullPhone, code },
+        });
+      } catch {
+        // fallback: código já salvo no banco
       }
 
+      setCodeSent(true);
+      toast.success('Código enviado para seu WhatsApp!');
     } catch (error) {
-      console.error('❌ Erro ao enviar código:', error);
+      console.error('Erro ao enviar código:', error);
       toast.error('Erro ao enviar código. Tente novamente.');
     } finally {
       setVerifyingPhone(false);
@@ -86,9 +72,8 @@ export default function VerifyPhone() {
       toast.error('Digite o código de 6 dígitos');
       return;
     }
-    
+
     setVerifyingCode(true);
-    
     try {
       const pendingPhone = localStorage.getItem('pending_phone');
       if (!pendingPhone) {
@@ -97,30 +82,21 @@ export default function VerifyPhone() {
       }
 
       const digits = pendingPhone.replace(/\D/g, '');
-      const fullPhone = digits.length === 11 ? `55${digits}` : digits;
+      const fullPhone = digits.length === 11 ? `55${digits}` : pendingPhone;
       const cleanCode = verificationCode.trim();
 
-      // Validar código
       const success = await validateAuthCode(fullPhone, cleanCode, user.id);
-      
+
       if (success) {
-        // Forçar atualização do perfil para garantir consistência
-        await fetchProfileImmediate(user.id, fullPhone);
-        
-        toast.success('WhatsApp verificado com sucesso!');
-        
-        // Limpar localStorage
+        await fetchProfile(user.id);
         localStorage.removeItem('pending_phone');
-        
-        // Redirecionar usando navigate para evitar looping
-        setTimeout(() => {
-          navigate('/profile');
-        }, 1000);
+        toast.success('WhatsApp verificado com sucesso!');
+        navigate('/profile', { replace: true });
       } else {
         toast.error('Código incorreto ou expirado');
       }
     } catch (error) {
-      console.error('❌ Erro na verificação:', error);
+      console.error('Erro na verificação:', error);
       toast.error('Erro na verificação. Tente novamente.');
     } finally {
       setVerifyingCode(false);
@@ -139,11 +115,12 @@ export default function VerifyPhone() {
         </div>
 
         <div className="bg-card rounded-xl p-6 shadow-sm space-y-4">
-          {/* Step 1: Send Code */}
           {!codeSent ? (
             <div className="space-y-4">
               <div>
-                <Label htmlFor="phone" className="text-sm font-medium mb-2 block">Seu WhatsApp</Label>
+                <Label htmlFor="phone" className="text-sm font-medium mb-2 block">
+                  Seu WhatsApp
+                </Label>
                 <Input
                   id="phone"
                   type="tel"
@@ -153,8 +130,7 @@ export default function VerifyPhone() {
                   className="h-11"
                 />
               </div>
-              
-              <Button 
+              <Button
                 onClick={handleSendCode}
                 disabled={verifyingPhone || !phoneNumber}
                 className="w-full h-11"
@@ -173,7 +149,6 @@ export default function VerifyPhone() {
               </Button>
             </div>
           ) : (
-            /* Step 2: Verify Code */
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">Código de verificação</label>
@@ -181,18 +156,18 @@ export default function VerifyPhone() {
                   type="text"
                   placeholder="000000"
                   value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(e) =>
+                    setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                  }
                   className="h-11 text-center text-lg font-mono"
                   maxLength={6}
                 />
               </div>
-              
               <p className="text-sm text-muted-foreground">
                 Digite o código de 6 dígitos enviado para seu WhatsApp
               </p>
-              
               <div className="space-y-2">
-                <Button 
+                <Button
                   onClick={handleVerifyCode}
                   disabled={verifyingCode || verificationCode.length !== 6}
                   className="w-full h-11"
@@ -206,8 +181,7 @@ export default function VerifyPhone() {
                     'Verificar Código'
                   )}
                 </Button>
-                
-                <Button 
+                <Button
                   variant="outline"
                   onClick={() => {
                     setCodeSent(false);
@@ -218,10 +192,9 @@ export default function VerifyPhone() {
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Voltar
                 </Button>
-                
-                <Button 
+                <Button
                   variant="ghost"
-                  onClick={() => window.location.replace('/profile')}
+                  onClick={() => navigate('/profile')}
                   className="w-full h-11 text-muted-foreground hover:text-foreground"
                 >
                   Verificar Depois
@@ -231,10 +204,10 @@ export default function VerifyPhone() {
           )}
         </div>
 
-        <div className="text-center space-y-4">
-          <Button 
-            variant="ghost" 
-            onClick={() => window.location.replace('/profile')}
+        <div className="text-center">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/profile')}
             className="text-muted-foreground hover:text-foreground"
           >
             Verificar Depois

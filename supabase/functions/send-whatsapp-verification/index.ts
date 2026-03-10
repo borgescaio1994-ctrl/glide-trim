@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,10 +37,37 @@ serve(async (req: Request): Promise<Response> => {
       formattedPhone = "55" + formattedPhone;
     }
 
+    // Criar cliente Supabase
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // SALVAR O CÓDIGO NA TABELA phone_verifications ANTES DE CHAMAR O N8N
+    console.log(" Salvando código na tabela phone_verifications:", formattedPhone, "código:", code);
+    
+    const { data: insertData, error: insertError } = await supabase
+      .from('phone_verifications')
+      .upsert({ 
+        phone_number: formattedPhone, 
+        verification_code: code,
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      }, { onConflict: 'phone_number' })
+      .select();
+
+    if (insertError) {
+      console.error(" Erro ao salvar código no banco:", insertError);
+      return new Response(
+        JSON.stringify({ error: "Erro ao salvar código no banco", details: insertError }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log(" Código salvo com sucesso:", insertData);
+
     console.log(" Enviando para n8n:", formattedPhone, "código:", code);
 
     // Webhook principal do n8n
-    const webhookUrl = "https://primary-jzx9-production.up.railway.app/webhook/64d8e09c-03a0-4d2c-8ada-141e0e26aac3";
+    const webhookUrl = "http://72.60.159.183:5678/webhook/64d8e09c-03a0-4d2c-8ada-141e0e26aac3";
     
     console.log(" Tentando webhook principal:", webhookUrl);
     
@@ -65,7 +93,12 @@ serve(async (req: Request): Promise<Response> => {
       if (n8nResponse.ok) {
         console.log(" WhatsApp enviado com sucesso!");
         return new Response(
-          JSON.stringify({ success: true, message: "WhatsApp enviado com sucesso", response: n8nResult }),
+          JSON.stringify({ 
+            success: true, 
+            message: "WhatsApp enviado com sucesso", 
+            response: n8nResult,
+            code_saved: true
+          }),
           { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
         );
       } else {
@@ -81,7 +114,8 @@ serve(async (req: Request): Promise<Response> => {
         JSON.stringify({ 
           error: "Erro ao enviar WhatsApp", 
           details: webhookError.message,
-          webhook: webhookUrl
+          webhook: webhookUrl,
+          code_saved: true // Código foi salvo mesmo com erro no webhook
         }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );

@@ -1,80 +1,50 @@
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Valida o código de autenticação comparando com a tabela phone_verifications.
- * Se válido, atualiza o perfil do cliente para 'is_verified: true' e salva o telefone.
+ * Valida o código na tabela phone_verifications (colunas: verification_code, verified_at).
+ * Se válido, marca o código como usado (verified_at) e, se userId for passado, atualiza o perfil.
  */
-export async function validateAuthCode(phoneNumber: string, inputCode: string, userId?: string): Promise<boolean> {
-  console.log('🔍 validateAuthCode iniciado (versão PRODUÇÃO)');
-  console.log('  - phoneNumber:', phoneNumber);
-  console.log('  - inputCode:', inputCode);
-  console.log('  - userId:', userId);
-  
+export async function validateAuthCode(
+  phoneNumber: string,
+  inputCode: string,
+  userId?: string
+): Promise<boolean> {
   try {
-    // 1. Buscar código válido no banco
     const { data: verification, error: fetchError } = await supabase
       .from('phone_verifications')
-      .select('*')
+      .select('id')
       .eq('phone_number', phoneNumber)
-      .eq('code', inputCode)
-      .eq('used', false)
+      .eq('verification_code', inputCode)
+      .is('verified_at', null)
       .gte('expires_at', new Date().toISOString())
+      .limit(1)
       .maybeSingle();
 
-    if (fetchError) {
-      console.error('❌ Erro ao buscar verificação:', fetchError);
+    if (fetchError || !verification) {
       return false;
     }
 
-    if (!verification) {
-      console.error('❌ Código não encontrado ou inválido');
-      return false;
-    }
-
-    console.log('✅ Código válido encontrado:', verification.id);
-
-    // 2. Marcar código como usado
-    const { error: updateError } = await supabase
+    await supabase
       .from('phone_verifications')
-      .update({ 
-        used: true,
-        used_at: new Date().toISOString()
-      } as any) // Type assertion para evitar erro de tipagem
+      .update({ verified_at: new Date().toISOString() })
       .eq('id', verification.id);
 
-    if (updateError) {
-      console.error('❌ Erro ao marcar código como usado:', updateError);
-      return false;
-    }
-
-    console.log('✅ Código marcado como usado com sucesso');
-
-    // 3. Se userId fornecido, atualizar o perfil imediatamente
     if (userId) {
-      console.log('💾 Atualizando perfil do usuário com telefone verificado...');
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({ 
+        .update({
           is_verified: true,
           phone: phoneNumber,
-          phone_number: phoneNumber // Garantir compatibilidade
+          phone_number: phoneNumber,
+          whatsapp_number: phoneNumber,
         })
         .eq('id', userId);
 
-      if (profileError) {
-        console.error('❌ Erro ao atualizar perfil:', profileError);
-        return false; // Retornar false pois falhou na atualização
-      } else {
-        console.log('✅ Perfil atualizado com sucesso - telefone:', phoneNumber);
-        return true;
-      }
+      if (profileError) return false;
     }
 
-    console.log('✅ Valeração concluída com sucesso');
     return true;
-    
-  } catch (error) {
-    console.error('❌ Erro inesperado no validateAuthCode:', error);
+  } catch {
     return false;
   }
 }

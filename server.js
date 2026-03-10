@@ -12,10 +12,29 @@ const port = process.env.PORT || 8080;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Set MIME types for JavaScript modules
+app.use((req, res, next) => {
+  if (req.path.endsWith('.js')) {
+    res.setHeader('Content-Type', 'application/javascript');
+  } else if (req.path.endsWith('.css')) {
+    res.setHeader('Content-Type', 'text/css');
+  } else if (req.path.endsWith('.mjs')) {
+    res.setHeader('Content-Type', 'application/javascript');
+  }
+  next();
+});
+
 // Serve static files from dist
 app.use(express.static(path.join(__dirname, "dist"), {
   index: "index.html",
-  maxAge: "1y"
+  maxAge: "1y",
+  setHeaders: (res, path) => {
+    if (path.endsWith('.js') || path.endsWith('.mjs')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    } else if (path.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css');
+    }
+  }
 }));
 
 // Health check endpoint
