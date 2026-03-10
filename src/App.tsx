@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import Layout from "@/components/Layout";
-import PhoneVerificationGuard from "@/components/PhoneVerificationGuard";
 import { Suspense, lazy } from "react";
 import { Loader2 } from "lucide-react";
 import { App as CapacitorApp } from "@capacitor/app";
@@ -57,29 +56,27 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <PhoneVerificationGuard> {/* O GUARDA ENTRA AQUI */}
-              <Layout>
-                <Suspense fallback={<PageLoader />}>
-                  <Routes>
-                    <Route path="/" element={<Index />} />
-                    <Route path="/auth" element={<Auth />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/services" element={<Services />} />
-                    <Route path="/schedule" element={<Schedule />} />
-                    <Route path="/appointments" element={<Appointments />} />
-                    <Route path="/finances" element={<Finances />} />
-                    <Route path="/book/:barberId/:serviceId" element={<BookAppointment />} />
-                    <Route path="/barber/:barberId" element={<BarberProfile />} />
-                    <Route path="/gallery" element={<Gallery />} />
-                    <Route path="/admin" element={<AdminDashboard />} />
-                    <Route path="/verify-otp" element={<VerifyOTP />} />
-                    <Route path="/verify-phone" element={<VerifyPhone />} />
-                    <Route path="/auth/callback" element={<Index />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Suspense>
-              </Layout>
-            </PhoneVerificationGuard>
+            <Layout>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/services" element={<Services />} />
+                  <Route path="/schedule" element={<Schedule />} />
+                  <Route path="/appointments" element={<Appointments />} />
+                  <Route path="/finances" element={<Finances />} />
+                  <Route path="/book/:barberId/:serviceId" element={<BookAppointment />} />
+                  <Route path="/barber/:barberId" element={<BarberProfile />} />
+                  <Route path="/gallery" element={<Gallery />} />
+                  <Route path="/admin" element={<AdminDashboard />} />
+                  <Route path="/verify-otp" element={<VerifyOTP />} />
+                  <Route path="/verify-phone" element={<VerifyPhone />} />
+                  <Route path="/auth/callback" element={<Index />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </Layout>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>

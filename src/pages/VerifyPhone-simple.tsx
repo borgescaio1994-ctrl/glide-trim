@@ -5,8 +5,7 @@ import { validateAuthCode } from '@/lib/authUtils';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Smartphone, MessageSquare, ShieldCheck, Loader2, MessageCircle } from 'lucide-react';
-import { Label } from '@/components/ui/label';
+import { ArrowLeft, Smartphone, MessageSquare, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function VerifyPhone() {
@@ -109,9 +108,9 @@ export default function VerifyPhone() {
         // Limpar localStorage
         localStorage.removeItem('pending_phone');
         
-        // Redirecionar usando window.location.replace para evitar tela preta
+        // Redirecionar
         setTimeout(() => {
-          window.location.replace('/');
+          navigate('/');
         }, 1000);
       } else {
         toast.error('Código incorreto ou expirado');
@@ -125,117 +124,100 @@ export default function VerifyPhone() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-5">
-      <div className="max-w-md w-full space-y-6">
-        <div className="text-center space-y-2">
-          <ShieldCheck className="w-12 h-12 text-primary mx-auto" />
-          <h1 className="text-2xl font-bold font-montserrat">Vincular WhatsApp</h1>
-          <p className="text-muted-foreground">
-            Envie um código para seu WhatsApp e confirme para vincular
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white p-4">
+      <div className="max-w-md mx-auto">
+        {/* Header */}
+        <div className="flex items-center mb-8">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate('/')}
+            className="mr-4"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-2xl font-bold">Verificar WhatsApp</h1>
         </div>
 
-        <div className="bg-card rounded-xl p-6 shadow-sm space-y-4">
-          {/* Step 1: Send Code */}
+        {/* Content */}
+        <div className="bg-gray-800 rounded-2xl p-6 shadow-xl">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Shield className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-semibold mb-2">Proteja sua conta</h2>
+            <p className="text-gray-400 text-sm">
+              Enviamos um código para seu WhatsApp para verificar seu número
+            </p>
+          </div>
+
           {!codeSent ? (
+            // Formulário de telefone
             <div className="space-y-4">
               <div>
-                <Label htmlFor="phone" className="text-sm font-medium mb-2 block">Seu WhatsApp</Label>
+                <label className="block text-sm font-medium mb-2">
+                  <Smartphone className="inline h-4 w-4 mr-2" />
+                  Número do WhatsApp
+                </label>
                 <Input
-                  id="phone"
                   type="tel"
-                  placeholder="DDD + Número"
+                  placeholder="(11) 91560-5439"
                   value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
-                  className="h-11"
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="bg-gray-700 border-gray-600 text-white"
+                  maxLength={15}
                 />
               </div>
               
               <Button 
                 onClick={handleSendCode}
-                disabled={verifyingPhone || !phoneNumber}
-                className="w-full h-11"
+                disabled={verifyingPhone}
+                className="w-full bg-blue-600 hover:bg-blue-700"
               >
-                {verifyingPhone ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    Enviar Código
-                  </>
-                )}
+                {verifyingPhone ? 'Enviando...' : 'Enviar Código'}
               </Button>
             </div>
           ) : (
-            /* Step 2: Verify Code */
+            // Formulário de código
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">Código de verificação</label>
+                <label className="block text-sm font-medium mb-2">
+                  <MessageSquare className="inline h-4 w-4 mr-2" />
+                  Código de verificação
+                </label>
                 <Input
                   type="text"
                   placeholder="000000"
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="h-11 text-center text-lg font-mono"
+                  className="bg-gray-700 border-gray-600 text-white text-center text-2xl tracking-widest"
                   maxLength={6}
                 />
+                <p className="text-xs text-gray-400 mt-2">
+                  Digite o código de 6 dígitos enviado para {phoneNumber}
+                </p>
               </div>
               
-              <p className="text-sm text-muted-foreground">
-                Digite o código de 6 dígitos enviado para seu WhatsApp
-              </p>
-              
-              <div className="space-y-2">
-                <Button 
-                  onClick={handleVerifyCode}
-                  disabled={verifyingCode || verificationCode.length !== 6}
-                  className="w-full h-11"
-                >
-                  {verifyingCode ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      Verificando...
-                    </>
-                  ) : (
-                    'Verificar Código'
-                  )}
-                </Button>
-                
-                <Button 
-                  variant="outline"
-                  onClick={() => {
-                    setCodeSent(false);
-                    setVerificationCode('');
-                  }}
-                  className="w-full h-11"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Voltar
-                </Button>
-                
-                <Button 
-                  variant="ghost"
-                  onClick={() => window.location.replace('/profile')}
-                  className="w-full h-11 text-muted-foreground hover:text-foreground"
-                >
-                  Verificar Depois
-                </Button>
-              </div>
+              <Button 
+                onClick={handleVerifyCode}
+                disabled={verifyingCode}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                {verifyingCode ? 'Verificando...' : 'Verificar Código'}
+              </Button>
+
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setCodeSent(false);
+                  setVerificationCode('');
+                }}
+                className="w-full border-gray-600 text-gray-300 hover:bg-gray-700"
+              >
+                Usar outro número
+              </Button>
             </div>
           )}
-        </div>
-
-        <div className="text-center space-y-4">
-          <Button 
-            variant="ghost" 
-            onClick={() => window.location.replace('/profile')}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            Verificar Depois
-          </Button>
         </div>
       </div>
     </div>
