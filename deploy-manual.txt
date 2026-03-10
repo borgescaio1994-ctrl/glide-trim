@@ -1,0 +1,36 @@
+DEPLOY MANUAL - BARBERPRO PWA
+
+PASSOS PARA ATUALIZAR O SERVIDOR:
+
+1. ACESSAR O SERVIDOR:
+   ssh root@72.60.159.183
+
+2. PARAR O SERVIÇO ATUAL:
+   pm2 stop barberpro
+
+3. FAZER BACKUP DOS ARQUIVOS ATUAIS:
+   cp -r /var/www/barberpro/dist /var/www/barberpro/dist-backup
+
+4. ENVIAR OS NOVOS ARQUIVOS BUILDADOS:
+   - Copiar toda a pasta 'dist' para /var/www/barberpro/
+   - Ou usar: scp -r dist/* root@72.60.159.183:/var/www/barberpro/
+
+5. REINICIAR O SERVIÇO:
+   pm2 start barberpro
+
+6. VERIFICAR STATUS:
+   pm2 status
+   pm2 logs barberpro
+
+URL DA APLICAÇÃO: http://72.60.159.183
+
+ARQUIVOS QUE MUDARAM:
+- src/components/PhoneVerificationGuard.tsx
+- src/hooks/useAuth.tsx
+- src/lib/authUtils.ts
+- src/pages/VerifyPhone.tsx
+- src/pages/Profile.tsx
+- src/pages/Appointments.tsx
+
+VERIFICAÇÃO:
+Acessar http://72.60.159.183 e testar as funcionalidades.

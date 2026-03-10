@@ -1,0 +1,16 @@
+{
+  "name": "barberpro-app",
+  "type": "nodejs",
+  "build": {
+    "commands": [
+      "npm install",
+      "npm run build"
+    ]
+  },
+  "start": {
+    "command": "node server.js"
+  },
+  "environment": {
+    "NODE_ENV": "production"
+  }
+}

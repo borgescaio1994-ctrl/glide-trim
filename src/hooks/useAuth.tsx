@@ -11,7 +11,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
   fetchProfile: (userId: string) => Promise<any>;
-  setIsAdmin: (value: boolean) => void;
+  fetchProfileImmediate: (userId: string, phone?: string) => Promise<any>;
   needsPhoneVerification: boolean;
 }
 
@@ -19,9 +19,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   // Função para salvar sessão no localStorage
   const saveSessionToStorage = (session: any) => {
@@ -81,6 +80,47 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return null;
     } catch (error) {
       console.error("❌ Erro ao buscar perfil:", error);
+      return null;
+    }
+  };
+
+  /**
+   * Atualiza imediatamente o perfil no Supabase após a verificação de telefone.
+   * Regra de ouro: toda verificação bem-sucedida deve passar por aqui.
+   */
+  const fetchProfileImmediate = async (userId: string, phone?: string) => {
+    try {
+      const updates: Record<string, any> = {
+        is_verified: true,
+      };
+
+      if (phone) {
+        updates.phone = phone;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", userId)
+        .select("*")
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        const cleanProfile = {
+          ...data,
+          is_verified: data.is_verified === true,
+          phone: data.phone || data.phone_number || data.whatsapp_number || "",
+        };
+
+        setProfile(cleanProfile);
+        return cleanProfile;
+      }
+
+      return null;
+    } catch (error) {
+      console.error("❌ Erro no fetchProfileImmediate:", error);
       return null;
     }
   };
@@ -183,6 +223,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setLoading(false);
   };
 
+  // Calcula se o usuário é admin baseado no email ou role
+  const isAdmin = user && !loading && (
+    user.email === 'admin@barberpro.com' || 
+    profile?.role === 'admin' || 
+    profile?.role === 'superadmin'
+  );
+
   // Calcula se o usuário precisa verificar telefone
   const needsPhoneVerification = user && !loading && profile && 
     !(profile.is_verified === true);
@@ -195,9 +242,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       signOut, 
       signIn,
       signUp,
-      fetchProfile, 
+      fetchProfile,
+      fetchProfileImmediate,
       isAdmin, 
-      setIsAdmin, 
       needsPhoneVerification
     }}>
       {children}

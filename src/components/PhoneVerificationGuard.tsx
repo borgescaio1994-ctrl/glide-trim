@@ -7,7 +7,7 @@ interface PhoneVerificationGuardProps {
 }
 
 export default function PhoneVerificationGuard({ children }: PhoneVerificationGuardProps) {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, needsPhoneVerification } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -22,18 +22,13 @@ export default function PhoneVerificationGuard({ children }: PhoneVerificationGu
       return;
     }
 
-    // Se já está na página de verificação, não faz nada
-    if (location.pathname === '/verify-phone') return;
-
     // Se precisa verificar telefone, redireciona automaticamente após login
-    if (user && profile && !(profile.is_verified || profile.phone_verified)) {
-      console.log('🔵 Usuário precisa verificar telefone, redirecionando...');
-      
+    if (needsPhoneVerification) {
       // Redireciona automaticamente para verificação
       navigate('/verify-phone');
       return;
     }
-  }, [user, profile, loading, navigate, location.pathname]);
+  }, [user, profile, loading, navigate, location.pathname, needsPhoneVerification]);
 
   // Se está carregando, mostra spinner
   if (loading) {

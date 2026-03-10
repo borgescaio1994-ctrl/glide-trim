@@ -1,142 +1,128 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { validateAuthCode } from '@/lib/authUtils';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ShieldCheck, MessageCircle, ArrowLeft, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { ArrowLeft, Smartphone, MessageSquare, ShieldCheck, Loader2, MessageCircle } from 'lucide-react';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function VerifyPhone() {
-  const { user, fetchProfile } = useAuth();
+  const { user, fetchProfileImmediate } = useAuth();
   const navigate = useNavigate();
   
   const [phoneNumber, setPhoneNumber] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
-  const [generatedCode, setGeneratedCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [verifyingPhone, setVerifyingPhone] = useState(false);
   const [verifyingCode, setVerifyingCode] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState('');
 
+  // Verificar se já tem telefone no localStorage
   useEffect(() => {
-    if (user && !user.user_metadata?.phone) {
-      fetchProfile();
+    const pendingPhone = localStorage.getItem('pending_phone');
+    if (pendingPhone) {
+      setPhoneNumber(pendingPhone);
+      setCodeSent(true);
     }
-  }, [user, fetchProfile]);
-
-  // Limpa estados ao desmontar
-  useEffect(() => {
-    return () => {
-      setVerificationCode('');
-      setCodeSent(false);
-    };
   }, []);
 
   const handleSendCode = async () => {
-    if (verifyingPhone || !phoneNumber) return;
+    if (!phoneNumber || phoneNumber.length < 10) {
+      toast.error('Digite um número válido');
+      return;
+    }
+
     setVerifyingPhone(true);
     
-    // Formatação do número: remove tudo que não é dígito e adiciona DDI 55
-    const digits = phoneNumber.replace(/\D/g, '');
-    const fullPhone = digits.length === 11 ? `55${digits}` : digits;
-    
-    // Gera código de 6 dígitos
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedCode(code);
-
     try {
-      console.log('🔵 Enviando código para:', fullPhone, 'código:', code);
-      
-      // 1. Limpeza preventiva para evitar erro de duplicidade
-      await supabase.from('phone_verifications').delete().eq('phone_number', fullPhone);
+      // Gerar código de 6 dígitos
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedCode(code);
 
-      // 2. Insere o novo código no banco
-      const { error: dbError } = await supabase.from('phone_verifications').insert({
-        phone_number: fullPhone,
-        verification_code: code,
-        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      // Formatar telefone
+      const digits = phoneNumber.replace(/\D/g, '');
+      const fullPhone = digits.length === 11 ? `55${digits}` : digits;
+
+      // Salvar telefone no localStorage
+      localStorage.setItem('pending_phone', phoneNumber);
+
+      console.log('📱 Enviando código:', { phone: fullPhone, code });
+      
+      // Chamar Edge Function
+      const response = await fetch('https://rubvkpxvgffmnloaxbqa.supabase.co/functions/v1/send-whatsapp-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1YnZrcHh2Z2ZtbmxvYXhicWEiLCJ0eXBlIjoiYXBpIiwicm9sZSI6ImFub24iLCJhdWQiOlsidXJsIiwidXJsLmFwaSIsInVybC5mdW5jdGlvbiJdLCJleHAiOjE5NzQ4MDI4ODJ9.7p_qxQa3QkZQIGxLjKz3vHkW8mNqRrNqRrNqRrNqRrNq'
+        },
+        body: JSON.stringify({
+          phone: fullPhone,
+          code: code
+        })
       });
 
-      if (dbError) throw dbError;
-
-      // 3. Tenta enviar via WhatsApp (se a função existir)
-      try {
-        const { error: funcError } = await supabase.functions.invoke('send-whatsapp-verification', { 
-          body: { phone: fullPhone, code } 
-        });
-
-        if (funcError) {
-          console.warn('Função WhatsApp não disponível, mas código foi salvo:', funcError);
-          // Não falha completamente se a função não existir
-        }
-      } catch (funcError) {
-        console.warn('Função WhatsApp não disponível, mas código foi salvo');
-        // Não falha completamente se a função não existir
+      if (response.ok) {
+        setCodeSent(true);
+        toast.success('Código enviado para seu WhatsApp!');
+      } else {
+        // Fallback: mostrar código na tela
+        setCodeSent(true);
+        toast.warning('Use o código na tela: ' + code);
       }
 
-      localStorage.setItem('pending_phone', fullPhone);
-      toast.success('Código enviado com sucesso!');
-      setCodeSent(true);
-      console.log('✅ Código enviado com sucesso!');
     } catch (error) {
-      console.error("Erro ao enviar:", error);
+      console.error('❌ Erro ao enviar código:', error);
       toast.error('Erro ao enviar código. Tente novamente.');
-    } finally { 
-      setVerifyingPhone(false); 
+    } finally {
+      setVerifyingPhone(false);
     }
   };
 
   const handleVerifyCode = async () => {
-    if (verifyingCode || !user?.id) return;
+    if (!user || !verificationCode || verificationCode.length !== 6) {
+      toast.error('Digite o código de 6 dígitos');
+      return;
+    }
+    
     setVerifyingCode(true);
-
+    
     try {
-      if (verificationCode.trim() === generatedCode) {
-        const fullPhone = localStorage.getItem('pending_phone') || phoneNumber.replace(/\D/g, '');
-        
-        console.log('🔵 Código correto! Salvando telefone:', fullPhone);
-        console.log('🔵 User ID:', user?.id);
-        
-        // Salva o número no perfil
-        const { error } = await supabase
-          .from('profiles')
-          .update({ 
-            phone: fullPhone,
-            phone_number: fullPhone,
-            whatsapp_number: fullPhone
-          })
-          .eq('id', user.id);
+      const pendingPhone = localStorage.getItem('pending_phone');
+      if (!pendingPhone) {
+        toast.error('Telefone não encontrado');
+        return;
+      }
 
-        console.log('🔵 Resultado do update:', error);
+      const digits = pendingPhone.replace(/\D/g, '');
+      const fullPhone = digits.length === 11 ? `55${digits}` : digits;
+      const cleanCode = verificationCode.trim();
 
-        if (!error) {
-          console.log('✅ Perfil atualizado com sucesso!');
-          localStorage.removeItem('pending_phone');
-          toast.success('WhatsApp verificado com sucesso!');
-          
-          // Verifica se veio do agendamento para voltar para lá
-          const returnToBooking = sessionStorage.getItem('returnToBooking');
-          if (returnToBooking) {
-            console.log('🔵 Retornando para agendamento...');
-            sessionStorage.removeItem('returnToBooking');
-            navigate(returnToBooking);
-          } else {
-            console.log('🔵 Redirecionando para /profile...');
-            navigate('/profile');
-          }
-        } else {
-          console.error("Erro ao salvar perfil:", error);
-          toast.error('Erro ao salvar número. Tente novamente.');
-        }
+      // Validar código
+      const success = await validateAuthCode(fullPhone, cleanCode, user.id);
+      
+      if (success) {
+        // Forçar atualização do perfil para garantir consistência
+        await fetchProfileImmediate(user.id, fullPhone);
+        
+        toast.success('WhatsApp verificado com sucesso!');
+        
+        // Limpar localStorage
+        localStorage.removeItem('pending_phone');
+        
+        // Redirecionar usando navigate para evitar looping
+        setTimeout(() => {
+          navigate('/profile');
+        }, 1000);
       } else {
-        console.log('🔴 Código incorreto:', verificationCode, 'esperado:', generatedCode);
-        toast.error('Código incorreto. Tente novamente.');
+        toast.error('Código incorreto ou expirado');
       }
     } catch (error) {
-      console.error("Erro na verificação:", error);
-      toast.error('Erro ao verificar. Tente novamente.');
+      console.error('❌ Erro na verificação:', error);
+      toast.error('Erro na verificação. Tente novamente.');
     } finally {
-      console.log('🔵 Finalizando verificação, setVerifyingCode(false)');
       setVerifyingCode(false);
     }
   };
@@ -157,12 +143,13 @@ export default function VerifyPhone() {
           {!codeSent ? (
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">Seu WhatsApp</label>
+                <Label htmlFor="phone" className="text-sm font-medium mb-2 block">Seu WhatsApp</Label>
                 <Input
+                  id="phone"
                   type="tel"
                   placeholder="DDD + Número"
                   value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
                   className="h-11"
                 />
               </div>
@@ -231,6 +218,14 @@ export default function VerifyPhone() {
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Voltar
                 </Button>
+                
+                <Button 
+                  variant="ghost"
+                  onClick={() => window.location.replace('/profile')}
+                  className="w-full h-11 text-muted-foreground hover:text-foreground"
+                >
+                  Verificar Depois
+                </Button>
               </div>
             </div>
           )}
@@ -239,15 +234,7 @@ export default function VerifyPhone() {
         <div className="text-center space-y-4">
           <Button 
             variant="ghost" 
-            onClick={() => {
-              const returnToBooking = sessionStorage.getItem('returnToBooking');
-              if (returnToBooking) {
-                sessionStorage.removeItem('returnToBooking');
-                navigate(returnToBooking);
-              } else {
-                navigate('/profile');
-              }
-            }}
+            onClick={() => window.location.replace('/profile')}
             className="text-muted-foreground hover:text-foreground"
           >
             Verificar Depois

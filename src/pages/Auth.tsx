@@ -9,13 +9,14 @@ import { toast } from 'sonner';
 import { Scissors, User, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export default function Auth() {
-  const [step, setStep] = useState<'select-role' | 'auth'>('select-role');
+  const [step, setStep] = useState<'select-role' | 'login' | 'register'>('select-role');
   const [selectedRole, setSelectedRole] = useState<'client' | 'barber' | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
 
@@ -36,19 +37,21 @@ export default function Auth() {
     setIsLoading(true);
 
     try {
-      if (selectedRole === 'client') {
-        // Cadastro de cliente - apenas nome
-        if (!name.trim()) {
-          toast.error('Por favor, informe seu nome');
+      if (authMode === 'register') {
+        // Cadastro de novo usuário
+        if (!name.trim() || !validateEmail(email) || !password.trim()) {
+          toast.error('Por favor, preencha todos os campos');
           setIsLoading(false);
           return;
         }
 
-        // Criar conta temporária para cliente com nome
-        const tempEmail = `${name.toLowerCase().replace(/\s+/g, '.')}@barberpro.local`;
-        const tempPassword = 'temp123';
-        
-        const { error } = await signUp(tempEmail, tempPassword, name);
+        if (password.length < 6) {
+          toast.error('A senha deve ter pelo menos 6 caracteres');
+          setIsLoading(false);
+          return;
+        }
+
+        const { error } = await signUp(email, password, name);
         if (error) {
           toast.error('Erro ao criar conta. Tente novamente.');
         } else {
@@ -56,9 +59,9 @@ export default function Auth() {
           navigate('/');
         }
       } else {
-        // Login de barbeiro
-        if (!validateEmail(email)) {
-          toast.error('Por favor, informe um email válido');
+        // Login
+        if (!validateEmail(email) || !password.trim()) {
+          toast.error('Por favor, informe email e senha');
           setIsLoading(false);
           return;
         }
@@ -116,7 +119,8 @@ export default function Auth() {
                 <Button
                   onClick={() => {
                     setSelectedRole('client');
-                    setStep('auth');
+                    setAuthMode('login');
+                    setStep('login');
                   }}
                   className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl"
                 >
@@ -125,7 +129,8 @@ export default function Auth() {
                 <Button
                   onClick={() => {
                     setSelectedRole('barber');
-                    setStep('auth');
+                    setAuthMode('login');
+                    setStep('login');
                   }}
                   variant="outline"
                   className="w-full h-12 border-border hover:bg-muted/50 text-foreground font-medium rounded-xl"
@@ -133,12 +138,25 @@ export default function Auth() {
                   Sou Barbeiro
                 </Button>
               </div>
+              
+              <div className="text-center">
+                <button
+                  onClick={() => {
+                    setSelectedRole('client');
+                    setAuthMode('register');
+                    setStep('register');
+                  }}
+                  className="text-primary hover:text-primary/80 font-medium text-sm transition-colors"
+                >
+                  Criar Nova Conta
+                </button>
+              </div>
             </>
-          ) : step === 'auth' && selectedRole === 'barber' ? (
+          ) : step === 'login' ? (
             <>
               <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold text-foreground mb-2">
-                  Login do Barbeiro
+                  {selectedRole === 'barber' ? 'Login do Barbeiro' : 'Login do Cliente'}
                 </h1>
                 <p className="text-muted-foreground">
                   Entre com seu email e senha
@@ -207,6 +225,7 @@ export default function Auth() {
                   onClick={() => {
                     setStep('select-role');
                     setSelectedRole(null);
+                    setAuthMode('login');
                   }}
                   className="text-sm text-muted-foreground hover:text-primary transition-colors"
                 >
@@ -214,14 +233,14 @@ export default function Auth() {
                 </button>
               </div>
             </>
-          ) : step === 'auth' && selectedRole === 'client' ? (
+          ) : step === 'register' ? (
             <>
               <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold text-foreground mb-2">
                   Criar Conta de Cliente
                 </h1>
                 <p className="text-muted-foreground">
-                  Digite seu nome para criar a conta
+                  Preencha seus dados para criar a conta
                 </p>
               </div>
               <form onSubmit={handleSubmit} className="space-y-5">
@@ -240,6 +259,48 @@ export default function Auth() {
                       required
                       className="pl-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
                     />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm text-foreground">
+                    Email
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="pl-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-sm text-foreground">
+                    Senha
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className="pl-10 pr-10 h-12 bg-input border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
                   </div>
                 </div>
                 <Button
@@ -262,6 +323,7 @@ export default function Auth() {
                   onClick={() => {
                     setStep('select-role');
                     setSelectedRole(null);
+                    setAuthMode('login');
                   }}
                   className="text-sm text-muted-foreground hover:text-primary transition-colors"
                 >

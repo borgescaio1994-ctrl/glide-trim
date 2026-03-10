@@ -170,7 +170,12 @@ export default function AdminDashboard() {
     const { data } = await supabase
       .from('profiles')
       .select('*')
-      .eq('role', 'barber')
+      .in('role', ['barber']) // Apenas role barber
+      .not('email', 'admin@barberpro.com') // Excluir superadmin
+      .not('email', is => 
+        is.in('admin@') || // Excluir emails que começam com admin@
+        is.in('superadmin@') // Excluir emails que começam com superadmin@
+      )
       .order('full_name');
 
     if (data) {

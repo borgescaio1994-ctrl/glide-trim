@@ -197,14 +197,25 @@ export default function BookAppointment() {
 
   // Confirmar agendamento
   const handleBook = async () => {
+    console.log('🔍 DEBUG - Tentando agendar:', {
+      user: !!user,
+      profile: !!profile,
+      is_verified: profile?.is_verified,
+      profileData: profile
+    });
+
     if (!user || !selectedDate || !selectedTime || !service || isBookingInProgress) return;
     
-    // Verificar se o telefone está verificado
+    // Verificar se o telefone está verificado - só se não estiver verificado
     if (!profile?.is_verified) {
+      console.log('❌ Telefone não verificado, redirecionando...');
       toast.error('Você precisa verificar seu telefone para fazer agendamentos. Vá para a página de perfil.');
       navigate('/profile');
       return;
     }
+    
+    // Se já está verificado, continuar com agendamento
+    console.log('✅ Telefone já verificado, prosseguindo com agendamento...');
     
     setIsBookingInProgress(true);
     setBooking(true);
@@ -390,7 +401,7 @@ export default function BookAppointment() {
           <div className="mt-8 mb-8">
             <Button
               onClick={user ? handleBook : () => navigate('/auth')}
-              disabled={booking}
+              disabled={booking || (user && !profile?.is_verified)}
               className="w-full h-14 text-lg font-semibold"
               size="lg"
             >
@@ -399,12 +410,33 @@ export default function BookAppointment() {
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Agendando...
                 </>
-              ) : user ? (
-                'Confirmar Agendamento'
-              ) : (
+              ) : !user ? (
                 'Fazer Login para Agendar'
+              ) : !profile?.is_verified ? (
+                'Verifique seu WhatsApp para Agendar'
+              ) : (
+                'Confirmar Agendamento'
               )}
             </Button>
+            
+            {/* Mensagem de verificação se necessário */}
+            {user && !profile?.is_verified && (
+              <div className="mt-3 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Você precisa verificar seu WhatsApp antes de agendar.
+                </p>
+                <Button
+                  variant="link"
+                  onClick={() => {
+                    sessionStorage.setItem('returnToBooking', window.location.pathname);
+                    navigate('/verify-phone');
+                  }}
+                  className="text-primary text-sm p-0 h-auto"
+                >
+                  Verificar WhatsApp agora
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
