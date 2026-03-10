@@ -40,21 +40,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
-
-      if (data) {
-        const cleanProfile: Profile = {
-          id: data.id,
-          email: data.email,
-          full_name: data.full_name || '',
-          role: data.role || 'client',
-          is_verified: data.is_verified === true || String(data.is_verified) === 'true',
-          phone_number: data.phone_number || '',
-        };
-        setProfile(cleanProfile);
-        return cleanProfile;
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return null;
       }
-      return null;
+
+      // FORÇAR CONVERSÃO DO is_verified PARA BOOLEANO REAL
+      const profileData = {
+        ...data,
+        is_verified: !!data.is_verified
+      };
+
+      setProfile(profileData);
+      return profileData;
     } catch (error) {
       console.error('❌ Erro ao buscar perfil:', error);
       return null;
@@ -131,7 +129,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ 
-      user, profile, loading: (loading || isSyncing), 
+      user, 
+      profile, 
+      loading: loading || isSyncing, // CONSIDERA SE O PERFIL JÁ FOI BUSCADO
       signOut: async () => { await supabase.auth.signOut(); }, 
       signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
       signUp: (email, password, name, phone) => supabase.auth.signUp({ 

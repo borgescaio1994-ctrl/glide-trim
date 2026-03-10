@@ -26,14 +26,12 @@ export default function PhoneVerificationGuard({ children }: PhoneVerificationGu
       return;
     }
 
-    // 3. A REGRA DE OURO: Evitar o looping na tela de verificação
-    if (needsPhoneVerification) {
-      // Se ele precisa verificar, mas já está na página de verificação, DEIXA ELE LÁ
-      if (path === '/verify-phone' || path === '/auth') {
-        return; 
-      }
-      
-      // Se ele tentar acessar a Home ou outra página sem verificar, bloqueia e manda de volta
+    // 3. A REGRA DE OURO: Redirecionamento para /verify-phone SÓ deve acontecer se:
+    // - user for verdadeiro (logado)
+    // - loading for falso (perfil já carregado)
+    // - profile.is_verified for estritamente false
+    // - A rota atual NÃO for /verify-phone
+    if (user && !loading && profile?.is_verified === false && path !== '/verify-phone') {
       console.log('🛡️ Guard: Acesso negado. Necessário verificar WhatsApp.');
       navigate('/verify-phone');
       return;
