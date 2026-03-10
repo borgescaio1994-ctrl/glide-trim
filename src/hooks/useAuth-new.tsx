@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 
@@ -20,6 +20,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   fetchProfile: (userId: string) => Promise<Profile | null>;
+  fetchProfileImmediate: (userId: string, phoneNumber: string) => Promise<void>; // Função crucial adicionada
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,7 +30,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string): Promise<Profile | null> => {
+  // Busca o perfil de forma estável
+  const fetchProfile = useCallback(async (userId: string): Promise<Profile | null> => {
     try {
       console.log('🔍 Buscando perfil para:', userId);
       
@@ -50,29 +52,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: data.email,
           full_name: data.full_name || '',
           role: data.role || 'client',
-          is_verified: data.is_verified === true,
-          phone: data.phone || data.phone_number || ''
+          is_verified: !!data.is_verified, // Força booleano real
+          phone: data.phone || data.phone_number || '' // Tenta as duas colunas comuns
         };
         
-        console.log('✅ Perfil encontrado:', cleanProfile);
         setProfile(cleanProfile);
         return cleanProfile;
       }
       return null;
     } catch (error) {
-      console.error('❌ Erro ao buscar perfil:', error);
+      console.error('❌ Erro inesperado no fetchProfile:', error);
       return null;
+    }
+  }, []);
+
+  // ESTA FUNÇÃO É A QUE ESTAVA FALTANDO PARA SALVAR O NÚMERO
+  const fetchProfileImmediate = async (userId: string, phoneNumber: string) => {
+    console.log('💾 Gravando verificação e telefone no banco para:', userId);
+    try {
+      // 1. Atualiza no Supabase
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          is_verified: true, 
+          phone: phoneNumber // Se der erro aqui, mude para 'phone_number' conforme seu banco
+        })
+        .eq('id', userId);
+
+      if (updateError) throw updateError;
+
+      // 2. Força a atualização do estado local buscando os dados novos
+      const updated = await fetchProfile(userId);
+      
+      if (updated) {
+        console.log('✅ Banco e Estado Local sincronizados com sucesso!');
+      }
+    } catch (error) {
+      console.error('❌ Erro fatal na gravação do perfil:', error);
+      throw error; // Repassa o erro para o componente tratar
     }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    
     if (data.user) {
       setUser(data.user);
       await fetchProfile(data.user.id);
@@ -83,15 +106,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-      },
+      options: { data: { full_name: fullName } },
     });
-
     if (error) throw error;
-    
     if (data.user) {
       setUser(data.user);
       await fetchProfile(data.user.id);
@@ -106,19 +123,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!user) return;
-
-    const { error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', user.id);
-
+    const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
     if (error) throw error;
-
-    // Atualizar perfil local
-    if (profile) {
-      const updatedProfile = { ...profile, ...updates };
-      setProfile(updatedProfile);
-    }
+    if (profile) setProfile({ ...profile, ...updates });
   };
 
   useEffect(() => {
@@ -146,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [fetchProfile]);
 
   return (
     <AuthContext.Provider
@@ -159,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         updateProfile,
         fetchProfile,
+        fetchProfileImmediate, // Disponibilizando para as páginas
       }}
     >
       {children}
