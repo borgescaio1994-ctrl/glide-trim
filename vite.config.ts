@@ -81,6 +81,8 @@ export default defineConfig(({ mode }) => ({
     target: 'esnext',
     minify: 'esbuild',
     sourcemap: mode === 'development',
+    // Forçar cache busting
+    assetsInlineLimit: 0,
     rollupOptions: {
       output: {
         // Split automático de chunks
@@ -90,7 +92,11 @@ export default defineConfig(({ mode }) => ({
           ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
           supabase: ['@supabase/supabase-js'],
           utils: ['date-fns', 'clsx', 'tailwind-merge']
-        }
+        },
+        // Cache busting forçado
+        entryFileNames: `assets/[name]-[hash].js`,
+        chunkFileNames: `assets/[name]-[hash].js`,
+        assetFileNames: `assets/[name]-[hash].[ext]`
       }
     },
     // Limites de chunk size

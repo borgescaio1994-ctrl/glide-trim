@@ -72,6 +72,10 @@ serve(async (req: Request): Promise<Response> => {
     console.log(" Tentando webhook principal:", webhookUrl);
     
     try {
+      // Adicionando timeout de 10 segundos para evitar EarlyDrop
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
       const n8nResponse = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
@@ -82,7 +86,11 @@ serve(async (req: Request): Promise<Response> => {
           code: code,
           action: 'send_verification'
         }),
+        signal: controller.signal,
       });
+
+      // Limpar timeout
+      clearTimeout(timeoutId);
 
       console.log(" Status do webhook:", n8nResponse.status);
       console.log(" Headers do webhook:", Object.fromEntries(n8nResponse.headers.entries()));
@@ -110,14 +118,17 @@ serve(async (req: Request): Promise<Response> => {
       console.error(" Erro ao chamar webhook:", webhookError);
       console.error(" Detalhes do erro:", webhookError.message);
       
+      // NÃO falhar completamente - retornar sucesso parcial
       return new Response(
         JSON.stringify({ 
-          error: "Erro ao enviar WhatsApp", 
+          success: true, // Mudar para true para não bloquear o fluxo
+          message: "Código salvo, mas WhatsApp pode ter falhado", 
           details: webhookError.message,
           webhook: webhookUrl,
-          code_saved: true // Código foi salvo mesmo com erro no webhook
+          code_saved: true,
+          webhook_failed: true
         }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 

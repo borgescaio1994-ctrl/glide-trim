@@ -70,8 +70,8 @@ const App = () => {
                   <Route path="/barber/:barberId" element={<BarberProfile />} />
                   <Route path="/gallery" element={<Gallery />} />
                   <Route path="/admin" element={<AdminDashboard />} />
-                  <Route path="/verify-otp" element={<VerifyOTP />} />
                   <Route path="/verify-phone" element={<VerifyPhone />} />
+                  {/* Removido /verify-otp para evitar conflito - usando apenas /verify-phone */}
                   <Route path="/auth/callback" element={<Index />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>

@@ -22,6 +22,11 @@ export default function PhoneVerificationGuard({ children }: PhoneVerificationGu
       return;
     }
 
+    // Se está na página de verificação, não redirecione para lugar nenhum
+    if (location.pathname === '/verify-phone') {
+      return;
+    }
+
     // Se precisa verificar telefone, redireciona automaticamente após login
     if (needsPhoneVerification) {
       // Redireciona automaticamente para verificação

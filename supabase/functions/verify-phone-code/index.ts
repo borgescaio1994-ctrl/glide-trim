@@ -9,91 +9,88 @@ const corsHeaders = {
 interface VerifyCodeRequest {
   phone: string;
   code: string;
+  userId: string;
 }
 
-const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
+serve(async (req) => {
+  // 1. Handle CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { phone, code }: VerifyCodeRequest = await req.json();
+    const { phone, code, userId } = await req.json();
 
-    if (!phone || !code) {
+    if (!phone || !code || !userId) {
       return new Response(
-        JSON.stringify({ error: "Número de telefone e código são obrigatórios" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ error: "Dados incompletos (phone, code ou userId faltando)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Format phone number
+    // Formatação padrão
     let formattedPhone = phone.replace(/\D/g, "");
     if (!formattedPhone.startsWith("55")) {
       formattedPhone = "55" + formattedPhone;
     }
 
-    console.log("Verifying code for phone:", formattedPhone, "code:", code);
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // First, check all records for this phone
-    const { data: allRecords, error: allError } = await supabase
+    // 2. Busca o código válido (sem timeout longo)
+    const { data: verification, error: verifyError } = await supabase
       .from("phone_verifications")
-      .select("*")
-      .eq("phone_number", formattedPhone);
-
-    console.log("All records for phone:", allRecords, "error:", allError);
-
-    // Query the verification record
-    const { data, error } = await supabase
-      .from("phone_verifications")
-      .select("*")
+      .select("id")
       .eq("phone_number", formattedPhone)
-      .eq("token", code)
+      .eq("verification_code", code)
       .is("verified_at", null)
-      .single();
+      .gte("expires_at", new Date().toISOString())
+      .maybeSingle();
 
-    console.log("Query result - data:", data, "error:", error);
-
-    if (error || !data) {
-      console.log("Verification failed:", error);
+    if (verifyError || !verification) {
       return new Response(
         JSON.stringify({ valid: false, error: "Código inválido ou expirado" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Mark as verified
-    const { error: updateError } = await supabase
-      .from("phone_verifications")
-      .update({ verified_at: new Date().toISOString() })
-      .eq("id", data.id);
+    // 3. EXECUÇÃO RELÂMPAGO: Atualiza as duas tabelas ao mesmo tempo
+    // Isso evita que a função fique esperando um e depois o outro (causa do EarlyDrop)
+    const [resLog, resProfile] = await Promise.all([
+      supabase
+        .from("phone_verifications")
+        .update({ verified_at: new Date().toISOString() })
+        .eq("id", verification.id),
+      
+      supabase
+        .from("profiles")
+        .update({ 
+          is_verified: true, 
+          phone: formattedPhone,
+          updated_at: new Date().toISOString() 
+        })
+        .eq("id", userId)
+    ]);
 
-    if (updateError) {
-      console.error("Error updating verification:", updateError);
-      return new Response(
-        JSON.stringify({ error: "Erro ao atualizar verificação" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    if (resProfile.error) {
+      console.error("Erro ao atualizar profile:", resProfile.error);
+      throw new Error("Falha ao atualizar perfil do usuário");
     }
 
-    console.log("Code verified successfully");
-
+    // 4. RESPOSTA IMEDIATA
+    // Retornamos valid: true para o Frontend limpar o 'pendingPhone' e redirecionar
     return new Response(
-      JSON.stringify({ valid: true, message: "Código verificado com sucesso" }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      JSON.stringify({ valid: true, message: "Verificado com sucesso" }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: unknown) {
-    console.error("Error in verify-phone-code function:", error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+  } catch (error) {
+    console.error("Erro crítico na função:", error.message);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-};
-
-serve(handler);
+});
