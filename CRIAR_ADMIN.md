@@ -1,21 +1,13 @@
--- Criar perfil de administrador para o BarberPro
--- Email: borgescaio1994@gmail.com
--- Senha: C@io1994
--- Perfil com is_verified: true, role: 'barber', isAdmin: true
+# Criar perfil de administrador (BarberPro)
 
--- Instruções:
--- 1. Acesse o Supabase Dashboard
--- 2. Vá para Authentication > Users
--- 3. Clique em "Add user"
--- 4. Preencha os dados acima
--- 5. Defina role como 'barber' e isAdmin como true
--- 6. Salve o usuário
+1. Acesse o Supabase Dashboard → Authentication → Users → Add user.
+2. Crie o usuário com o email que será o admin.
+3. No banco, na tabela `profiles`, defina para esse usuário:
+   - `role`: `'admin'` ou `'superadmin'`
+   - `is_verified`: `true`
 
--- SQL para atualizar perfil existente (se necessário):
--- UPDATE profiles 
--- SET role = 'barber', 
---     is_verified = true, 
---     isAdmin = true 
--- WHERE email = 'borgescaio1994@gmail.com';
+Para o app não listar esse email na lista de barbeiros, configure no `.env`:
 
--- Este perfil terá acesso completo ao sistema administrativo.
+```env
+VITE_SUPERADMIN_EMAIL=seu-email-admin@exemplo.com
+```

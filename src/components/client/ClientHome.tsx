@@ -34,25 +34,33 @@ export default function ClientHome() {
 
   const fetchData = async () => {
     try {
+      setLoading(true);
+      const superadminEmail = import.meta.env.VITE_SUPERADMIN_EMAIL || '';
+
       // Fetch home settings
       const { data: settingsData } = await supabase
         .from('home_settings')
         .select('hero_image_url, title, subtitle')
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (settingsData) {
         setHomeSettings(settingsData);
       }
 
-      // Fetch barbers
-      const { data: barbersData } = await supabase
+      // Fetch barbers (role = barber, excluir superadmin se configurado)
+      let query = supabase
         .from('profiles')
         .select('id, full_name, avatar_url')
-        .eq('role', 'barber')
-        .neq('email', 'borgescaio1994@gmail.com'); // Garante que superadmin não apareça
+        .eq('role', 'barber');
+      if (superadminEmail) {
+        query = query.neq('email', superadminEmail);
+      }
+      const { data: barbersData, error } = await query;
 
-      if (barbersData) {
+      if (error) {
+        console.error('Erro ao carregar barbeiros:', error);
+      } else if (barbersData && barbersData.length > 0) {
         setBarbers(barbersData);
       }
     } catch (error) {

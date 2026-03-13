@@ -68,29 +68,34 @@ export default function VerifyPhone() {
   };
 
   const handleVerifyCode = async () => {
-    if (!verificationCode.trim()) {
-      toast.error('Digite o código recebido');
+    if (!verificationCode.trim() || verificationCode.trim().length !== 6) {
+      toast.error('Digite o código de 6 dígitos recebido');
       return;
     }
+    if (!user?.id) {
+      toast.error('Sessão inválida. Faça login novamente.');
+      return;
+    }
+    const pendingPhone = localStorage.getItem('pending_phone');
+    if (!pendingPhone) {
+      toast.error('Telefone não encontrado. Envie o código novamente.');
+      return;
+    }
+
     setVerifyingCode(true);
     try {
-      const pendingPhone = localStorage.getItem('pending_phone'); 
-      const success = await validateAuthCode(pendingPhone, verificationCode.trim(), user.id);
-       console.log("success");
+      const code = verificationCode.trim();
+      const success = await validateAuthCode(pendingPhone, code, user.id);
 
-      // if (success) {
-      //   localStorage.removeItem('pending_phone');
-      //   localStorage.removeItem('pendingPhone'); // Just in case
-        
-      //   await fetchProfile(user.id); // Atualiza o perfil globalmente
-        
-      //   toast.success('WhatsApp verificado com sucesso!');
-        
-      //   // FORÇAMOS O REDIRECIONAMENTO PARA A DASHBOARD
-      //   window.location.href = '/profile'; 
-      // } else {
-      //   toast.error('Código incorreto ou expirado');
-      // }
+      if (success) {
+        localStorage.removeItem('pending_phone');
+        setVerifyingCode(false);
+        toast.success('WhatsApp verificado com sucesso!');
+        navigate('/profile', { replace: true });
+        fetchProfile(user.id).catch(() => {});
+        return;
+      }
+      toast.error('Código incorreto ou expirado');
     } catch (error) {
       console.error('Erro na verificação:', error);
       toast.error('Erro na verificação. Tente novamente.');

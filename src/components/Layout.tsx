@@ -1,10 +1,13 @@
 import { ReactNode, useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import BottomNav from './BottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { MessageCircle } from 'lucide-react';
 
 export default function Layout({ children, showNav = true }: { children: ReactNode, showNav?: boolean }) {
   const { user } = useAuth();
+  const location = useLocation();
+  const hideFloatingButton = location.pathname === '/verify-phone' || location.pathname === '/auth';
   const [position, setPosition] = useState({ x: 20, y: window.innerHeight - 150 });
   const [isDragging, setIsDragging] = useState(false);
   const [rel, setRel] = useState({ x: 0, y: 0 });
@@ -44,17 +47,17 @@ export default function Layout({ children, showNav = true }: { children: ReactNo
     <div className="min-h-screen bg-background text-foreground">
       <main className={showNav && user ? 'pb-20' : ''}>{children}</main>
       {showNav && user && <BottomNav />}
+      {!hideFloatingButton && (
       <button
         onMouseDown={onStart} onTouchStart={onStart}
         onClick={() => {
         if (!isDragging) {
-          const url = 'https://wa.me/5511915605439';
-          // Tentar abrir em nova aba
-          const newWindow = window.open(url, '_blank');
-          // Fallback se bloqueado
-          if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-            // Abrir na mesma aba
-            window.location.href = url;
+          const url = import.meta.env.VITE_WHATSAPP_CONTACT || '';
+          if (url) {
+            const newWindow = window.open(url, '_blank');
+            if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+              window.location.href = url;
+            }
           }
         }
       }}
@@ -63,6 +66,7 @@ export default function Layout({ children, showNav = true }: { children: ReactNo
       >
         <MessageCircle />
       </button>
+      )}
     </div>
   );
 }

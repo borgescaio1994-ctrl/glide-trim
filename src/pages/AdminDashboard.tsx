@@ -189,7 +189,7 @@ export default function AdminDashboard() {
       .from('profiles')
       .select('*')
       .eq('role', 'barber')
-      .neq('email', 'borgescaio1994@gmail.com') // Garante que superadmin não apareça
+      .neq('email', import.meta.env.VITE_SUPERADMIN_EMAIL || '')
       .order('full_name');
 
     if (data) {

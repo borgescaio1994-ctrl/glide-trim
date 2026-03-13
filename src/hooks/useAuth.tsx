@@ -104,7 +104,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
-        await fetchProfile(session.user.id);
+        const loadedProfile = await fetchProfile(session.user.id);
+        if (!loadedProfile) {
+          await supabase.auth.signOut();
+          setUser(null);
+          setProfile(null);
+        }
       } else {
         setUser(null);
         setProfile(null);
@@ -129,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin =
     !!user &&
     !loading &&
-    (user.email === 'admin@barberpro.com' || profile?.role === 'admin' || profile?.role === 'superadmin');
+    (profile?.role === 'admin' || profile?.role === 'superadmin' || (import.meta.env.VITE_ADMIN_EMAIL && user.email === import.meta.env.VITE_ADMIN_EMAIL));
 
   const needsPhoneVerification =
     !!user && !loading && !!profile && !(profile.is_verified === true);

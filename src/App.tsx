@@ -23,7 +23,6 @@ const BookAppointment = lazy(() => import("./pages/BookAppointment"));
 const BarberProfile = lazy(() => import("./pages/BarberProfile"));
 const Gallery = lazy(() => import("./pages/Gallery"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
-const VerifyOTP = lazy(() => import("./pages/VerifyOTP"));
 const VerifyPhone = lazy(() => import("./pages/VerifyPhone"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -55,7 +54,7 @@ const App = () => {
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_relativeSplatPath: true }}>
             <Layout>
               <Suspense fallback={<PageLoader />}>
                 <Routes>

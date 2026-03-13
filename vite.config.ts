@@ -11,12 +11,8 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   preview: {
-    allowedHosts: [
-      'glide-trim-production.up.railway.app',
-      'localhost',
-      '0.0.0.0'
-    ],
-    port: 3000,
+    allowedHosts: ['localhost', '0.0.0.0'],
+    port: 8080,
   },
   plugins: [
     react(),

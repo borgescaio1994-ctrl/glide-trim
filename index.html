@@ -19,11 +19,11 @@
     <meta property="og:title" content="BarberPro PWA" />
     <meta property="og:description" content="Aplicativo para agendamento de barbeiros" />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta property="og:image" content="/icon-512.svg" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@BarberPro" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:image" content="/icon-512.svg" />
   </head>
 
   <body>
@@ -34,13 +34,7 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-              console.log('✅ Service Worker registrado:', registration);
-            })
-            .catch(error => {
-              console.log('❌ Service Worker falhou:', error);
-            });
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
         });
       }
     </script>

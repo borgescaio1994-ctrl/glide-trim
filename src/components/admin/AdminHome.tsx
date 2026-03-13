@@ -58,7 +58,7 @@ export default function AdminHome() {
       .from('profiles')
       .select('id')
       .eq('role', 'barber')
-      .neq('email', 'borgescaio1994@gmail.com'); // Garante que superadmin não apareça
+      .neq('email', import.meta.env.VITE_SUPERADMIN_EMAIL || '')
 
     // Today's appointments count (all barbers)
     const { data: todayAppts } = await supabase

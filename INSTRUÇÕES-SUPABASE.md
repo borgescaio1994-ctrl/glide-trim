@@ -8,7 +8,7 @@ O processo está travando na inserção do banco de dados.
 ### 1. ACESSAR SUPABASE DASHBOARD
 - Vá para: https://supabase.com/dashboard
 - Faça login com sua conta
-- Selecione o projeto: rubvkpxvgffmnloaxbqa
+- Selecione o seu projeto
 
 ### 2. CRIAR TABELA PHONE_VERIFICATIONS
 - No menu lateral, clique em "**SQL Editor**"
