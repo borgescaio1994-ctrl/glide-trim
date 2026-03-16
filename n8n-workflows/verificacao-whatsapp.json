@@ -1,0 +1,111 @@
+{
+  "name": "BarberPro - Verificação WhatsApp (código)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "verificacao-whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-verification",
+      "name": "Webhook Verificação",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "verificacao-whatsapp"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Payload da Edge Function: { phone, code, action: 'send_verification' }\nconst body = $input.first().json.body || $input.first().json;\nconst phone = (body.phone || '').replace(/\\D/g, '');\nconst number = phone.startsWith('55') ? phone : '55' + phone;\nconst code = (body.code || '').toString().trim();\n\nconst message = `🔐 *BarberPro*\\n\\nSeu código de verificação é: *${code}*\\n\\nVálido por 10 minutos. Não compartilhe com ninguém.`;\n\nreturn [{ json: { number, message, raw: body } }];"
+      },
+      "id": "format-verification",
+      "name": "Montar mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://72.60.159.183:8080/message/sendText/caio_zap",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { number: $json.number, options: { delay: 1200, presence: 'composing' }, textMessage: { text: $json.message } } }}",
+        "options": {}
+      },
+      "id": "send-whatsapp",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "notes": "Evolution API: 72.60.159.183:8080, instância caio_zap"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Código enviado\" } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-webhook",
+      "name": "Responder Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Verificação": {
+      "main": [
+        [
+          {
+            "node": "Montar mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar mensagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Responder Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {}
+}

@@ -1,0 +1,130 @@
+{
+  "name": "BarberPro - Cancelamento de Agendamento",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cancelamento-agendamento",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-cancel",
+      "name": "Webhook Cancelamento",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "cancelamento-agendamento"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst body = raw && (typeof raw.body !== 'undefined' ? raw.body : raw) || {};\nconst cancelledBy = String(body.cancelled_by || '').toLowerCase();\nconst isBarber = cancelledBy === 'barber';\nreturn [{ json: { body, isBarber } }];"
+      },
+      "id": "normalize-cancel",
+      "name": "Normalizar (quem cancelou)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond-barber",
+              "leftValue": "={{ $json.isBarber ? 'barber' : 'client' }}",
+              "rightValue": "barber",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-barber-client",
+      "name": "Cancelado pelo barbeiro?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst body = raw.body || raw;\nconst phone = (body.client_phone || body.phone || '').replace(/\\D/g, '');\nconst number = phone.length === 11 ? '55' + phone : phone;\nconst clientName = body.client_name || body.clientName || 'Cliente';\nconst barberName = body.barber_name || body.barberName || 'Barbeiro';\nconst serviceName = body.service_name || body.serviceName || 'Serviço';\nconst date = body.appointment_date || body.date || '';\nconst time = body.appointment_time || body.time || '';\nlet dateFormatted = (date && typeof date === 'string') ? String(date).trim() : '';\nif (dateFormatted.length >= 10 && dateFormatted.includes('-')) {\n  const parts = dateFormatted.slice(0, 10).split('-');\n  if (parts.length === 3 && parts[0] && parts[1] && parts[2]) dateFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`;\n}\nconst timeFormatted = (time || '').toString().slice(0, 5);\nconst message = `❌ *Cancelamento pelo estabelecimento*\\n\\nOlá, ${clientName}!\\n\\nInfelizmente precisamos cancelar seu agendamento.\\n📅 Data: ${dateFormatted}\\n🕐 Horário: ${timeFormatted}\\n✂️ Serviço: ${serviceName}\\n👤 Barbeiro: ${barberName}\\n\\nPedimos desculpas pelo inconveniente. Agende um novo horário quando quiser!`;\nreturn [{ json: { number, message } }];"
+      },
+      "id": "msg-barber",
+      "name": "Mensagem (cancelado pelo barbeiro)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst body = raw.body || raw;\nconst phone = (body.client_phone || body.phone || '').replace(/\\D/g, '');\nconst number = phone.length === 11 ? '55' + phone : phone;\nconst clientName = body.client_name || body.clientName || 'Cliente';\nconst barberName = body.barber_name || body.barberName || 'Barbeiro';\nconst serviceName = body.service_name || body.serviceName || 'Serviço';\nconst date = body.appointment_date || body.date || '';\nconst time = body.appointment_time || body.time || '';\nlet dateFormatted = (date && typeof date === 'string') ? String(date).trim() : '';\nif (dateFormatted.length >= 10 && dateFormatted.includes('-')) {\n  const parts = dateFormatted.slice(0, 10).split('-');\n  if (parts.length === 3 && parts[0] && parts[1] && parts[2]) dateFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`;\n}\nconst timeFormatted = (time || '').toString().slice(0, 5);\nconst message = `❌ *Agendamento cancelado*\\n\\nOlá, ${clientName}!\\n\\nSeu agendamento foi cancelado.\\n📅 Data: ${dateFormatted}\\n🕐 Horário: ${timeFormatted}\\n✂️ Serviço: ${serviceName}\\n👤 Barbeiro: ${barberName}\\n\\nSe precisar, agende um novo horário pelo app.`;\nreturn [{ json: { number, message } }];"
+      },
+      "id": "msg-client",
+      "name": "Mensagem (cancelado pelo cliente)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://72.60.159.183:8080/message/sendText/caio_zap",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "apikey", "value": "caio123" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { number: $json.number, options: { delay: 1200, presence: 'composing' }, textMessage: { text: $json.message } } }}",
+        "options": {}
+      },
+      "id": "send-whatsapp",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1080, 300],
+      "notes": "Evolution API — apikey: caio123"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Mensagem de cancelamento enviada\" } }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "respond-webhook",
+      "name": "Responder Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1300, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Cancelamento": {
+      "main": [[{ "node": "Normalizar (quem cancelou)", "type": "main", "index": 0 }]]
+    },
+    "Normalizar (quem cancelou)": {
+      "main": [[{ "node": "Cancelado pelo barbeiro?", "type": "main", "index": 0 }]]
+    },
+    "Cancelado pelo barbeiro?": {
+      "main": [
+        [{ "node": "Mensagem (cancelado pelo barbeiro)", "type": "main", "index": 0 }],
+        [{ "node": "Mensagem (cancelado pelo cliente)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Mensagem (cancelado pelo barbeiro)": {
+      "main": [[{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }]]
+    },
+    "Mensagem (cancelado pelo cliente)": {
+      "main": [[{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }]]
+    },
+    "Enviar WhatsApp": {
+      "main": [[{ "node": "Responder Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "meta": { "templateCredsSetupCompleted": false },
+  "pinData": {}
+}
