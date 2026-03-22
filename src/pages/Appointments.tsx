@@ -4,8 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { format, parseISO, isPast, isToday, isFuture } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, Calendar, Clock, DollarSign, User, X, Scissors } from 'lucide-react';
-import { toast } from 'sonner';
+import { ArrowLeft, Calendar, Clock, DollarSign, User, X, Scissors, CheckCircle } from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Appointment {
   id: string;
@@ -27,42 +27,42 @@ interface Appointment {
 }
 
 export default function Appointments() {
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
+  const { success, error: showError } = useToast();
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'upcoming' | 'past'>('upcoming');
 
   useEffect(() => {
-    if (profile?.id) {
-      fetchAppointments();
+    if (authLoading) return;
+    if (!profile?.id) {
+      setLoading(false);
+      return;
     }
-  }, [profile?.id]);
+    fetchAppointments();
+  }, [profile?.id, authLoading]);
 
   const fetchAppointments = async () => {
     setLoading(true);
-    
-    // Primeiro, executa a função de cancelamento automático via SQL direto
+    try {
     try {
       await supabase.rpc('auto_cancel_past_appointments');
-      console.log(' Agendamentos passados cancelados automaticamente');
-    } catch (error) {
-      console.warn(' Erro ao cancelar agendamentos passados:', error);
-      // Se a função não existir, tenta via SQL direto
+    } catch {
       try {
         await supabase
           .from('appointments')
           .update({ status: 'cancelled' })
           .eq('status', 'scheduled')
           .lt('appointment_date', new Date().toISOString().split('T')[0]);
-        console.log(' Agendamentos passados cancelados via SQL direto');
-      } catch (sqlError) {
-        console.warn(' Erro ao cancelar via SQL direto:', sqlError);
+      } catch {
+        /* RPC pode não existir; fallback opcional */
       }
     }
-    
-    // Depois, busca os agendamentos atualizados
-    const column = profile?.role === 'barber' ? 'barber_id' : 'client_id';
+
+    const isBarberView =
+      profile?.profile_role === 'BARBER' || profile?.profile_role === 'ADMIN_BARBER';
+    const column = isBarberView ? 'barber_id' : 'client_id';
     const { data, error } = await supabase
       .from('appointments')
       .select(`
@@ -78,7 +78,11 @@ export default function Appointments() {
     if (data) {
       setAppointments(data as any);
     }
-    setLoading(false);
+    } catch (e) {
+      if (import.meta.env.DEV) console.error('Appointments fetchAppointments:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const cancelAppointment = async (id: string) => {
@@ -90,9 +94,23 @@ export default function Appointments() {
       .eq('id', id);
 
     if (error) {
-      toast.error('Erro ao cancelar agendamento');
+      showError('Erro ao cancelar agendamento');
     } else {
-      toast.success('Agendamento cancelado');
+      success('Agendamento cancelado');
+      fetchAppointments();
+    }
+  };
+
+  const completeAppointment = async (id: string) => {
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) {
+      showError('Erro ao concluir agendamento');
+    } else {
+      success('Agendamento concluído');
       fetchAppointments();
     }
   };
@@ -215,7 +233,7 @@ export default function Appointments() {
                       </h3>
                       <p className="text-sm text-muted-foreground">
                         {profile?.role === 'client'
-                          ? `com ${appointment.barber?.full_name}`
+                          ? `Profissional: ${appointment.barber?.full_name}`
                           : appointment.client?.full_name}
                       </p>
                     </div>
@@ -241,13 +259,24 @@ export default function Appointments() {
                 </div>
 
                 {appointment.status === 'scheduled' && (
-                  <button
-                    onClick={() => cancelAppointment(appointment.id)}
-                    className="w-full py-2 bg-destructive/10 text-destructive rounded-xl text-sm font-medium hover:bg-destructive/20 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <X className="w-4 h-4" />
-                    Cancelar agendamento
-                  </button>
+                  <div className="flex flex-col gap-2">
+                    {profile?.role === 'barber' && (
+                      <button
+                        onClick={() => completeAppointment(appointment.id)}
+                        className="w-full py-2 bg-green-500/10 text-green-600 rounded-xl text-sm font-medium hover:bg-green-500/20 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Concluir agendamento
+                      </button>
+                    )}
+                    <button
+                      onClick={() => cancelAppointment(appointment.id)}
+                      className="w-full py-2 bg-destructive/10 text-destructive rounded-xl text-sm font-medium hover:bg-destructive/20 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <X className="w-4 h-4" />
+                      Cancelar agendamento
+                    </button>
+                  </div>
                 )}
               </div>
             ))}

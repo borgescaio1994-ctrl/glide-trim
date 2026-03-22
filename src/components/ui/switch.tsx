@@ -1,27 +1,36 @@
-import * as React from "react";
-import * as SwitchPrimitives from "@radix-ui/react-switch";
+import { InputHTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
 
-import { cn } from "@/lib/utils";
+interface SwitchProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+}
 
-const Switch = React.forwardRef<
-  React.ElementRef<typeof SwitchPrimitives.Root>,
-  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
->(({ className, ...props }, ref) => (
-  <SwitchPrimitives.Root
-    className={cn(
-      "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50",
-      className,
-    )}
-    {...props}
-    ref={ref}
-  >
-    <SwitchPrimitives.Thumb
+export function Switch({ className, checked, onCheckedChange, onChange, ...props }: SwitchProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
       className={cn(
-        "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0",
+        'inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50',
+        checked ? 'bg-primary' : 'bg-muted',
+        className
       )}
-    />
-  </SwitchPrimitives.Root>
-));
-Switch.displayName = SwitchPrimitives.Root.displayName;
-
-export { Switch };
+      onClick={() => onCheckedChange?.(!checked)}
+      onKeyDown={(e) => {
+        if (e.key === ' ') {
+          e.preventDefault();
+          onCheckedChange?.(!checked);
+        }
+      }}
+    >
+      <span
+        className={cn(
+          'pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform',
+          checked ? 'translate-x-5' : 'translate-x-1'
+        )}
+      />
+    </button>
+  );
+}

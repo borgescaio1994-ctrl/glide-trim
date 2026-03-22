@@ -3,8 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
+import { useToast } from '@/contexts/ToastContext';
 import { Upload, Save, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface HomeSettings {
   id: string;
@@ -14,6 +15,8 @@ interface HomeSettings {
 }
 
 export default function HomeSettingsEditor() {
+  const { success, error: showError } = useToast();
+  const { profile } = useAuth();
   const [settings, setSettings] = useState<HomeSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -22,23 +25,38 @@ export default function HomeSettingsEditor() {
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [profile?.establishment_id]);
 
   const fetchSettings = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('home_settings')
-        .select('*')
-        .limit(1)
-        .single();
+      const establishmentId = profile?.establishment_id;
+      if (!establishmentId) {
+        setSettings(null);
+        return;
+      }
 
-      if (error && error.code !== 'PGRST116') throw error;
-      
+      const { data, error } = await supabase
+        .from('establishments')
+        .select('id, hero_image_url, home_title, home_subtitle, name')
+        .eq('id', establishmentId)
+        .maybeSingle();
+
+      if (error) throw error;
+
       if (data) {
-        setSettings(data);
+        setSettings({
+          id: data.id,
+          hero_image_url: (data as any).hero_image_url ?? null,
+          title: ((data as any).home_title ?? data.name ?? 'BookNow') as string,
+          subtitle: ((data as any).home_subtitle ?? null) as string | null,
+        });
+      } else {
+        setSettings(null);
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
+      setSettings(null);
     } finally {
       setLoading(false);
     }
@@ -47,16 +65,18 @@ export default function HomeSettingsEditor() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const establishmentId = profile?.establishment_id;
+    if (!establishmentId) return;
 
     if (!file.type.startsWith('image/')) {
-      toast.error('Por favor, selecione uma imagem');
+      showError('Por favor, selecione uma imagem');
       return;
     }
 
     setUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `hero-${Date.now()}.${fileExt}`;
+      const fileName = `${establishmentId}/hero-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('home-assets')
@@ -69,10 +89,10 @@ export default function HomeSettingsEditor() {
         .getPublicUrl(fileName);
 
       setSettings(prev => prev ? { ...prev, hero_image_url: publicUrl } : null);
-      toast.success('Imagem carregada!');
+      success('Imagem carregada!');
     } catch (error: any) {
       console.error('Error uploading:', error);
-      toast.error('Erro ao carregar imagem');
+      showError(error?.message || 'Erro ao carregar imagem');
     } finally {
       setUploading(false);
     }
@@ -84,19 +104,26 @@ export default function HomeSettingsEditor() {
     setSaving(true);
     try {
       const { error } = await supabase
-        .from('home_settings')
+        .from('establishments')
         .update({
           hero_image_url: settings.hero_image_url,
-          title: settings.title,
-          subtitle: settings.subtitle,
-        })
+          home_title: settings.title,
+          home_subtitle: settings.subtitle,
+        } as any)
         .eq('id', settings.id);
 
       if (error) throw error;
-      toast.success('Configurações salvas!');
+      success('Configurações salvas!');
     } catch (error: any) {
       console.error('Error saving:', error);
-      toast.error('Erro ao salvar configurações');
+      const msg = String(error?.message || error || '');
+      if (msg.includes('permission denied') || msg.includes('42501') || msg.includes('policy')) {
+        showError(
+          'Sem permissão para salvar. Confirme: assinatura da loja ativa (subscription_status), conta como dono (ADMIN_BARBER) e unidade vinculada.'
+        );
+      } else {
+        showError(msg || 'Erro ao salvar configurações');
+      }
     } finally {
       setSaving(false);
     }
@@ -109,6 +136,22 @@ export default function HomeSettingsEditor() {
         <div className="h-40 bg-muted rounded mb-4" />
         <div className="h-10 bg-muted rounded mb-3" />
         <div className="h-20 bg-muted rounded" />
+      </div>
+    );
+  }
+
+  if (!profile?.establishment_id) {
+    return (
+      <div className="bg-card rounded-2xl p-6 border border-border/50 text-sm text-muted-foreground">
+        Sua conta não está vinculada a uma unidade (establishment). O super admin precisa associar seu usuário a uma loja para editar título, descrição e imagem da página inicial.
+      </div>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <div className="bg-card rounded-2xl p-6 border border-border/50 text-sm text-muted-foreground">
+        Não foi possível carregar os dados da unidade. Verifique se a assinatura está ativa e tente novamente.
       </div>
     );
   }
@@ -160,7 +203,7 @@ export default function HomeSettingsEditor() {
         <Input
           value={settings?.title || ''}
           onChange={(e) => setSettings(prev => prev ? { ...prev, title: e.target.value } : null)}
-          placeholder="Nome da barbearia"
+          placeholder="Nome da loja"
           className="bg-background"
         />
       </div>

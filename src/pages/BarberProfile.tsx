@@ -1,12 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Scissors, Clock, DollarSign, ChevronRight, Calendar, Image, Camera } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
-import ReactCrop, { Crop } from 'react-image-crop';
-import 'react-image-crop/dist/ReactCrop.css';
 
 interface Barber {
   id: string;
@@ -38,6 +35,26 @@ interface GalleryImage {
 
 const DAYS_OF_WEEK = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+/** Número internacional só com dígitos (ex.: 5511999998888) para wa.me */
+function toWhatsAppDigits(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let d = raw.replace(/\D/g, '');
+  if (!d) return null;
+  // Brasil: DDD + número sem código do país
+  if (!d.startsWith('55') && d.length >= 10 && d.length <= 11) {
+    d = `55${d}`;
+  }
+  if (d.length < 10) return null;
+  return d;
+}
+
+function buildWhatsAppUrl(phoneDigits: string, barberName: string): string {
+  const text = encodeURIComponent(
+    `Olá! Vim pelo app e gostaria de falar sobre os serviços${barberName ? ` (${barberName})` : ''}.`
+  );
+  return `https://wa.me/${phoneDigits}?text=${text}`;
+}
+
 export default function BarberProfile() {
   const { barberId } = useParams();
   const navigate = useNavigate();
@@ -48,17 +65,9 @@ export default function BarberProfile() {
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [showCropModal, setShowCropModal] = useState(false);
-  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
-  const [crop, setCrop] = useState<Crop>({ unit: '%', width: 50, height: 50, x: 25, y: 25 });
-  const [completedCrop, setCompletedCrop] = useState<Crop | null>(null);
+  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-
-  useEffect(() => {
-    if (barberId) {
-      fetchData();
-    }
-  }, [barberId]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (barberId) {
@@ -67,6 +76,7 @@ export default function BarberProfile() {
   }, [barberId]);
 
   const fetchData = async () => {
+    setWhatsappUrl(null);
     try {
       // Fetch barber profile
       const { data: barberData } = await supabase
@@ -128,94 +138,29 @@ export default function BarberProfile() {
 
   const isOwnProfile = profile?.id === barberId && profile?.role === 'barber';
 
-  const selectImage = async (source: CameraSource) => {
-    try {
-      const image = await CapacitorCamera.getPhoto({
-        quality: 90,
-        allowEditing: false,
-        resultType: CameraResultType.DataUrl,
-        source,
-      });
-      setImageToCrop(image.dataUrl || null);
-      setShowCropModal(true);
-    } catch (error) {
-      console.error('Error selecting image:', error);
-    }
-  };
-
-  const handleCropComplete = (crop: Crop) => {
-    setCompletedCrop(crop);
-  };
-
-  const uploadImage = async () => {
-    if (!completedCrop || !imageToCrop) return;
-
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !barberId) return;
+    if (!file.type.startsWith('image/')) return;
     setUploading(true);
     try {
-      // Create canvas for cropping
-      const image = new window.Image();
-      image.src = imageToCrop;
-      await new Promise((resolve) => {
-        image.onload = resolve;
-      });
-
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const scaleX = image.naturalWidth / image.width;
-      const scaleY = image.naturalHeight / image.height;
-
-      canvas.width = completedCrop.width * scaleX;
-      canvas.height = completedCrop.height * scaleY;
-
-      ctx.drawImage(
-        image,
-        completedCrop.x * scaleX,
-        completedCrop.y * scaleY,
-        completedCrop.width * scaleX,
-        completedCrop.height * scaleY,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) return;
-
-        const fileName = `${barberId}/avatar-${Date.now()}.jpg`;
-        const { data, error } = await supabase.storage
-          .from('avatars')
-          .upload(fileName, blob, {
-            contentType: 'image/jpeg',
-            upsert: true,
-          });
-
-        if (error) throw error;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('avatars')
-          .getPublicUrl(fileName);
-
-        // Update profile
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ avatar_url: publicUrl })
-          .eq('id', barberId);
-
-        if (updateError) throw updateError;
-
-        // Update local state
-        setBarber(prev => prev ? { ...prev, avatar_url: publicUrl } : null);
-        setShowCropModal(false);
-        setImageToCrop(null);
-        setCompletedCrop(null);
-      }, 'image/jpeg');
-    } catch (error) {
-      console.error('Error uploading image:', error);
+      const fileName = `${barberId}/avatar-${Date.now()}.jpg`;
+      const { error } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { contentType: file.type, upsert: true });
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', barberId);
+      if (updateError) throw updateError;
+      setBarber(prev => prev ? { ...prev, avatar_url: publicUrl } : null);
+    } catch (err) {
+      console.error('Erro ao enviar foto:', err);
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -230,7 +175,7 @@ export default function BarberProfile() {
   if (!barber) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Barbeiro não encontrado</p>
+        <p className="text-muted-foreground">Profissional não encontrado</p>
       </div>
     );
   }
@@ -260,17 +205,29 @@ export default function BarberProfile() {
                 <Scissors className="w-10 h-10 text-primary" />
               )}
               {isOwnProfile && (
-                <button
-                  onClick={() => selectImage(CameraSource.Photos)}
-                  className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity rounded-2xl"
-                >
-                  <Camera className="w-6 h-6 text-white" />
-                </button>
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarFile}
+                    disabled={uploading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity rounded-2xl disabled:opacity-50"
+                    disabled={uploading}
+                  >
+                    {uploading ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : <Camera className="w-6 h-6 text-white" />}
+                  </button>
+                </>
               )}
             </div>
             <div>
               <h1 className="text-xl font-bold text-foreground">{barber.full_name}</h1>
-              <p className="text-sm text-muted-foreground">Barbeiro profissional</p>
+              <p className="text-sm text-muted-foreground">Profissional</p>
             </div>
           </div>
         </div>
@@ -368,7 +325,7 @@ export default function BarberProfile() {
               >
                 <img
                   src={image.image_url}
-                  alt="Trabalho do barbeiro"
+                  alt="Trabalho do profissional"
                   className="w-full h-full object-cover"
                 />
               </button>
@@ -385,47 +342,33 @@ export default function BarberProfile() {
         >
           <img
             src={selectedImage}
-            alt="Trabalho do barbeiro"
+            alt="Trabalho do profissional"
             className="max-w-full max-h-full object-contain rounded-lg"
           />
         </div>
       )}
 
-      {/* Crop Modal */}
-      {showCropModal && imageToCrop && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
-          <div className="bg-card rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-4 text-center">Ajustar Foto</h3>
-            <div className="mb-4">
-              <ReactCrop
-                crop={crop}
-                onChange={setCrop}
-                onComplete={handleCropComplete}
-                aspect={1}
-                circularCrop
-              >
-                <img src={imageToCrop} alt="Imagem para cortar" className="max-w-full" />
-              </ReactCrop>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowCropModal(false)}
-                className="flex-1 bg-muted text-muted-foreground py-2 rounded-lg"
-                disabled={uploading}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={uploadImage}
-                className="flex-1 bg-primary text-primary-foreground py-2 rounded-lg disabled:opacity-50"
-                disabled={uploading || !completedCrop}
-              >
-                {uploading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Salvar'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* WhatsApp flutuante: número do estabelecimento (dono) ou fallback do perfil */}
+      {whatsappUrl && (
+        <a
+          href={whatsappUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fixed bottom-6 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:ring-offset-2"
+          aria-label="Conversar no WhatsApp"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="h-8 w-8"
+            aria-hidden
+          >
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+          </svg>
+        </a>
       )}
+
     </div>
   );
 }

@@ -4,8 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import {
   ArrowLeft,
   DollarSign,
@@ -26,28 +24,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { useToast } from '@/contexts/ToastContext';
+import { SimpleModal } from '@/components/ui/SimpleModal';
 import HomeSettingsEditor from '@/components/admin/HomeSettingsEditor';
+import { messageFromFunctionsInvoke } from '@/lib/edgeFunctionError';
 
 interface Barber {
   id: string;
@@ -80,7 +60,8 @@ interface BarberStats {
 }
 
 export default function AdminDashboard() {
-  const { profile, user, isAdmin } = useAuth();
+  const { profile, user, isAdmin, isSuperAdmin, loading: authLoading } = useAuth();
+  const { success, error: showError } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'week' | 'month'>('month');
@@ -95,7 +76,6 @@ export default function AdminDashboard() {
   const [showAddBarberDialog, setShowAddBarberDialog] = useState(false);
   const [showAddServiceDialog, setShowAddServiceDialog] = useState(false);
   const [showAddAppointmentDialog, setShowAddAppointmentDialog] = useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [averageTicket, setAverageTicket] = useState(0);
   const [deletingBarber, setDeletingBarber] = useState<string | null>(null);
   const [showAddBarber, setShowAddBarber] = useState(false);
@@ -108,20 +88,29 @@ export default function AdminDashboard() {
   const [reportStartDate, setReportStartDate] = useState<string>('');
   const [reportEndDate, setReportEndDate] = useState<string>('');
 
-  // Verificar se é admin ou superadmin
-  const checkSuperAdmin = profile?.role === 'admin' || isAdmin;
-  
+  const isAdminBarber = profile?.profile_role === 'ADMIN_BARBER';
+  const establishmentIdFilter = isAdminBarber ? profile?.establishment_id ?? null : null;
+
+  // Apenas ADMIN_BARBER acessa o painel de gestão da unidade. SUPER_ADMIN usa /super-admin; BARBER não vê painel.
   useEffect(() => {
-    setIsSuperAdmin(checkSuperAdmin);
-    if (!loading && (!checkSuperAdmin && profile?.role !== 'barber')) {
+    if (authLoading || loading || !user) return;
+    if (isSuperAdmin) {
+      navigate('/super-admin');
+      return;
+    }
+    if (!isAdminBarber && profile?.profile_role === 'BARBER') {
       navigate('/');
       return;
     }
-  }, [loading, checkSuperAdmin, profile, navigate]);
+    if (!isAdminBarber) {
+      navigate('/');
+      return;
+    }
+  }, [authLoading, loading, user, isSuperAdmin, isAdminBarber, profile?.profile_role, navigate]);
 
   useEffect(() => {
     fetchData();
-  }, [period]);
+  }, [period, establishmentIdFilter]);
 
   const fetchCompletedAppointments = async () => {
     setLoadingReports(true);
@@ -140,6 +129,9 @@ export default function AdminDashboard() {
 
     if (reportBarber !== 'all') {
       query = query.eq('barber_id', reportBarber);
+    }
+    if (establishmentIdFilter) {
+      query = query.eq('establishment_id', establishmentIdFilter);
     }
 
     if (reportStartDate) {
@@ -175,32 +167,47 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([
-      fetchBarbers(),
-      fetchRegisteredBarbers(),
-      fetchFinancialStats(),
-      fetchServiceStats(),
-    ]);
-    setLoading(false);
-  };
-
-  const fetchBarbers = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'barber')
-      .neq('email', import.meta.env.VITE_SUPERADMIN_EMAIL || '')
-      .order('full_name');
-
-    if (data) {
-      setBarbers(data);
+    try {
+      await Promise.all([
+        fetchBarbers(),
+        fetchRegisteredBarbers(),
+        fetchFinancialStats(),
+        fetchServiceStats(),
+      ]);
+    } catch (e) {
+      console.error('AdminDashboard fetchData:', e);
+      showError('Erro ao carregar dados do painel');
+    } finally {
+      setLoading(false);
     }
   };
 
+  const fetchBarbers = async () => {
+    if (isAdminBarber && !establishmentIdFilter) {
+      setBarbers([]);
+      return;
+    }
+    let query = supabase
+      .from('profiles')
+      .select('*')
+      // Schema multitenant: profissionais usam profile_role; role legado pode divergir
+      .in('profile_role', ['BARBER', 'ADMIN_BARBER'] as any)
+      .neq('email', import.meta.env.VITE_SUPERADMIN_EMAIL || '')
+      .order('full_name');
+    if (establishmentIdFilter) query = query.eq('establishment_id', establishmentIdFilter);
+    const { data } = await query;
+    if (data) setBarbers(data);
+  };
+
   const fetchRegisteredBarbers = async () => {
+    if (!establishmentIdFilter) {
+      setRegisteredBarbers([]);
+      return;
+    }
     const { data } = await supabase
       .from('registered_barbers')
       .select('*')
+      .eq('establishment_id', establishmentIdFilter)
       .order('created_at', { ascending: false });
 
     if (data) {
@@ -210,65 +217,108 @@ export default function AdminDashboard() {
 
   const handleAddBarber = async () => {
     if (!newBarber.full_name || !newBarber.email || !newBarber.password) {
-      toast.error('Nome, email e senha são obrigatórios');
+      showError('Nome, email e senha são obrigatórios');
+      return;
+    }
+
+    if (!establishmentIdFilter) {
+      showError('Estabelecimento não encontrado');
       return;
     }
 
     setAddingBarber(true);
 
     try {
-      // 1. Criar usuário via função admin (não muda sessão)
-      const { data: result, error: adminError } = await supabase.rpc('admin_create_user', {
-        p_email: newBarber.email.toLowerCase().trim(),
-        p_password: newBarber.password,
-        p_full_name: newBarber.full_name,
-        p_phone: newBarber.phone || null,
-        p_role: 'barber'
-      });
+      // Regra do plano: limita a quantidade de profissionais.
+      const { data: estData } = await supabase
+        .from('establishments')
+        .select('max_barbers')
+        .eq('id', establishmentIdFilter)
+        .maybeSingle();
 
-      if (adminError) {
-        console.error('Error creating admin user:', adminError);
-        toast.error('Erro ao criar usuário');
+      const maxBarbers = estData?.max_barbers ?? 999;
+
+      const { count } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('establishment_id', establishmentIdFilter)
+        .in('profile_role', ['BARBER', 'ADMIN_BARBER'] as any);
+
+      const currentBarbers = count ?? 0;
+      if (currentBarbers >= maxBarbers) {
+        showError('Limite do plano atingido. Faça upgrade para adicionar mais profissionais.');
         setAddingBarber(false);
         return;
       }
 
-      if (!result?.success) {
-        if (result?.error?.includes('Email já cadastrado') || result?.existing_user) {
-          toast.error('Este email já está cadastrado no sistema');
-        } else {
-          console.error('Error creating user:', result?.error);
-          toast.error('Erro ao criar usuário: ' + (result?.error || 'Erro desconhecido'));
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data: fnData, error: fnError } = await supabase.functions.invoke(
+        'create-establishment-barber',
+        {
+          body: {
+            email: newBarber.email.toLowerCase().trim(),
+            password: newBarber.password,
+            full_name: newBarber.full_name.trim(),
+            phone: newBarber.phone || null,
+            establishment_id: establishmentIdFilter,
+          },
+          headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : undefined,
         }
-        setAddingBarber(false);
+      );
+
+      const payload = fnData as
+        | { success?: boolean; error?: string; warning?: string; message?: string }
+        | null;
+
+      if (fnError || (payload?.error && !payload?.success)) {
+        const detail = await messageFromFunctionsInvoke(fnData, fnError);
+        console.error('create-establishment-barber:', fnError ?? detail, fnData);
+        showError(detail);
+        return;
+      }
+      if (!payload?.success) {
+        showError('Não foi possível cadastrar o profissional. Tente novamente.');
         return;
       }
 
-      const message = result?.message || 'Barbeiro criado com sucesso';
-      toast.success(`${message}! Email: ${newBarber.email}, Senha: ${newBarber.password}`);
+      // Usuário criado no Auth, mas atualização do perfil falhou (ex.: RLS)
+      if (payload.warning) {
+        showError(`Usuário criado, mas falhou ao vincular perfil: ${payload.warning}`);
+        await Promise.all([fetchBarbers(), fetchRegisteredBarbers()]);
+        return;
+      }
+
+      success(`Profissional cadastrado com sucesso! Email: ${newBarber.email}, Senha: ${newBarber.password}`);
       setNewBarber({ full_name: '', email: '', phone: '', password: '' });
       setShowAddBarber(false);
-      fetchRegisteredBarbers();
+      await Promise.all([fetchBarbers(), fetchRegisteredBarbers()]);
     } catch (error: any) {
       console.error('Error adding barber:', error);
-      toast.error('Erro ao cadastrar barbeiro');
+      showError('Erro ao cadastrar profissional');
     } finally {
       setAddingBarber(false);
     }
   };
 
   const handleDeleteRegisteredBarber = async (id: string) => {
+    if (!establishmentIdFilter) {
+      showError('Estabelecimento não encontrado');
+      return;
+    }
     try {
       const { error } = await supabase
         .from('registered_barbers')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('establishment_id', establishmentIdFilter);
 
       if (error) throw error;
-      toast.success('Barbeiro removido da lista');
+      success('Profissional removido da lista');
       fetchRegisteredBarbers();
     } catch (error) {
-      toast.error('Erro ao remover barbeiro');
+      showError('Erro ao remover da lista');
     }
   };
 
@@ -285,7 +335,7 @@ export default function AdminDashboard() {
       endDate = endOfMonth(today);
     }
 
-    const { data } = await supabase
+    let revQuery = supabase
       .from('appointments')
       .select(`
         barber_id,
@@ -295,6 +345,8 @@ export default function AdminDashboard() {
       .eq('status', 'completed')
       .gte('appointment_date', format(startDate, 'yyyy-MM-dd'))
       .lte('appointment_date', format(endDate, 'yyyy-MM-dd'));
+    if (establishmentIdFilter) revQuery = revQuery.eq('establishment_id', establishmentIdFilter);
+    const { data } = await revQuery;
 
     if (data) {
       const total = data.reduce(
@@ -343,12 +395,14 @@ export default function AdminDashboard() {
       endDate = endOfMonth(today);
     }
 
-    const { data } = await supabase
+    let svcQuery = supabase
       .from('appointments')
       .select('service:services(name, price)')
       .eq('status', 'completed')
       .gte('appointment_date', format(startDate, 'yyyy-MM-dd'))
       .lte('appointment_date', format(endDate, 'yyyy-MM-dd'));
+    if (establishmentIdFilter) svcQuery = svcQuery.eq('establishment_id', establishmentIdFilter);
+    const { data } = await svcQuery;
 
     if (data) {
       const serviceMap = new Map<string, { count: number; revenue: number }>();
@@ -386,10 +440,7 @@ export default function AdminDashboard() {
     setDeletingBarber(barberId);
 
     try {
-      console.log('Starting barber deletion for ID:', barberId);
-
       // Delete appointments first
-      console.log('Deleting appointments...');
       const { error: aptError } = await supabase
         .from('appointments')
         .delete()
@@ -400,7 +451,6 @@ export default function AdminDashboard() {
       }
 
       // Delete services
-      console.log('Deleting services...');
       const { error: svcError } = await supabase
         .from('services')
         .delete()
@@ -411,7 +461,6 @@ export default function AdminDashboard() {
       }
 
       // Delete schedules
-      console.log('Deleting schedules...');
       const { error: schError } = await supabase
         .from('barber_schedules')
         .delete()
@@ -422,7 +471,6 @@ export default function AdminDashboard() {
       }
 
       // Delete gallery
-      console.log('Deleting gallery...');
       const { error: galError } = await supabase
         .from('barber_gallery')
         .delete()
@@ -433,7 +481,6 @@ export default function AdminDashboard() {
       }
 
       // Delete profile
-      console.log('Deleting profile...');
       const { error } = await supabase
         .from('profiles')
         .delete()
@@ -444,12 +491,11 @@ export default function AdminDashboard() {
         throw error;
       }
 
-      console.log('Barber deletion completed successfully');
-      toast.success('Barbeiro removido com sucesso');
+      success('Profissional removido com sucesso');
       fetchBarbers();
     } catch (error: any) {
       console.error('Error deleting barber:', error);
-      toast.error('Erro ao remover barbeiro');
+      showError('Erro ao remover da lista');
     } finally {
       setDeletingBarber(null);
     }
@@ -462,37 +508,8 @@ export default function AdminDashboard() {
     }).format(price);
   };
 
-  const generatePDF = async () => {
-    const element = document.getElementById('reports-content');
-    if (!element) return;
-
-    const canvas = await html2canvas(element, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-    });
-
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-
-    const imgWidth = 210;
-    const pageHeight = 295;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    let heightLeft = imgHeight;
-
-    let position = 0;
-
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft >= 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
-
-    pdf.save('relatorio-procedimentos.pdf');
+  const generatePDF = () => {
+    success('Relatório exibido na tela. Exportação em PDF será disponibilizada em breve.');
   };
 
   const pieColors = [
@@ -683,11 +700,11 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* Revenue by Barber */}
+      {/* Faturamento por profissional */}
       <div className="px-5 mb-6">
         <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <Scissors className="w-5 h-5 text-primary" />
-          Faturamento por Barbeiro
+          Faturamento por profissional
         </h2>
 
         {loading ? (
@@ -746,27 +763,18 @@ export default function AdminDashboard() {
         <HomeSettingsEditor />
       </div>
 
-      {/* Add Barber Section */}
+      {/* Cadastro de profissionais */}
       <div className="px-5 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <UserPlus className="w-5 h-5 text-primary" />
-            Cadastrar Barbeiro
+            Cadastrar profissional
           </h2>
-          <Dialog open={showAddBarber} onOpenChange={setShowAddBarber}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-2">
-                <UserPlus className="w-4 h-4" />
-                Adicionar
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Cadastrar Novo Barbeiro</DialogTitle>
-                <DialogDescription>
-                  Informe os dados do barbeiro. Quando ele fizer login com este email, terá acesso automático como barbeiro.
-                </DialogDescription>
-              </DialogHeader>
+          <Button size="sm" className="gap-2" onClick={() => setShowAddBarber(true)}>
+            <UserPlus className="w-4 h-4" />
+            Adicionar
+          </Button>
+          <SimpleModal open={showAddBarber} onOpenChange={setShowAddBarber} title="Cadastrar novo profissional" description="Informe os dados do profissional. Ao fazer login com este email, ele terá acesso automático como profissional da loja.">
               <div className="space-y-4 mt-4">
                 <div>
                   <Label htmlFor="barber-name">Nome completo *</Label>
@@ -801,7 +809,7 @@ export default function AdminDashboard() {
                   <Input
                     id="barber-password"
                     type="password"
-                    placeholder="Senha para o barbeiro acessar"
+                    placeholder="Senha para o profissional acessar"
                     value={newBarber.password}
                     onChange={(e) => setNewBarber({ ...newBarber, password: e.target.value })}
                   />
@@ -811,11 +819,10 @@ export default function AdminDashboard() {
                   className="w-full"
                   disabled={addingBarber}
                 >
-                  {addingBarber ? 'Cadastrando...' : 'Cadastrar Barbeiro'}
+                  {addingBarber ? 'Cadastrando...' : 'Cadastrar profissional'}
                 </Button>
               </div>
-            </DialogContent>
-          </Dialog>
+          </SimpleModal>
         </div>
 
         {registeredBarbers.length > 0 && (
@@ -859,18 +866,18 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* Active Barbers Management */}
+      {/* Profissionais ativos */}
       <div className="px-5 pb-8">
         <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <Users className="w-5 h-5 text-primary" />
-          Barbeiros Ativos
+          Profissionais ativos
         </h2>
 
         {barbers.length === 0 ? (
           <div className="bg-card rounded-2xl p-6 border border-border/50 text-center">
             <Users className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-            <p className="text-muted-foreground">Nenhum barbeiro ativo</p>
-            <p className="text-xs text-muted-foreground mt-1">Cadastre um email acima e peça para o barbeiro fazer login</p>
+            <p className="text-muted-foreground">Nenhum profissional ativo</p>
+            <p className="text-xs text-muted-foreground mt-1">Cadastre um email acima e peça para o profissional fazer login</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -897,34 +904,19 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Remover barbeiro?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Esta ação irá remover permanentemente o barbeiro <strong>{barber.full_name}</strong> e todos os seus dados (serviços, agendamentos, galeria).
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => handleDeleteBarber(barber.id)}
-                        className="bg-destructive hover:bg-destructive/90"
-                      >
-                        {deletingBarber === barber.id ? 'Removendo...' : 'Remover'}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive hover:bg-destructive/10"
+                  onClick={() => {
+                    if (confirm(`Remover permanentemente o profissional ${barber.full_name} e todos os seus dados?`)) {
+                      handleDeleteBarber(barber.id);
+                    }
+                  }}
+                  disabled={deletingBarber === barber.id}
+                >
+                  {deletingBarber === barber.id ? '...' : <Trash2 className="w-5 h-5" />}
+                </Button>
               </div>
             ))}
           </div>
@@ -932,31 +924,26 @@ export default function AdminDashboard() {
 
       </div>
 
-      {/* Reports Dialog */}
-      <Dialog open={showReports} onOpenChange={setShowReports}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Relatório de Procedimentos Concluídos e Cancelados
-            </DialogTitle>
-            <DialogDescription>
-              Detalhes de todos os procedimentos finalizados. Use os filtros abaixo para personalizar a visualização.
-            </DialogDescription>
-          </DialogHeader>
-
+      {/* Reports Modal */}
+      <SimpleModal
+        open={showReports}
+        onOpenChange={setShowReports}
+        title="Relatório de Procedimentos Concluídos e Cancelados"
+        description="Detalhes de todos os procedimentos finalizados. Use os filtros abaixo para personalizar a visualização."
+        className="max-w-4xl max-h-[80vh] overflow-y-auto"
+      >
           {/* Filters */}
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="report-barber">Barbeiro</Label>
+                <Label htmlFor="report-barber">Profissional</Label>
                 <select
                   id="report-barber"
                   value={reportBarber}
                   onChange={(e) => setReportBarber(e.target.value)}
                   className="w-full mt-1 px-3 py-2 border border-border rounded-md bg-background"
                 >
-                  <option value="all">Todos os barbeiros</option>
+                  <option value="all">Todos os profissionais</option>
                   {barbers.map((barber) => (
                     <option key={barber.id} value={barber.id}>
                       {barber.full_name}
@@ -1042,7 +1029,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>Barbeiro: {(appointment.barber as any)?.full_name}</span>
+                    <span>Profissional: {(appointment.barber as any)?.full_name}</span>
                     <span>Duração: {(appointment.service as any)?.duration_minutes} min</span>
                   </div>
 
@@ -1053,16 +1040,15 @@ export default function AdminDashboard() {
               ))}
             </div>
           )}
-        </DialogContent>
-        <DialogFooter>
+        <div className="mt-4 flex justify-end">
           {completedAndCancelledAppointments.length > 0 && (
             <Button onClick={generatePDF} variant="outline" className="gap-2">
               <FileText className="w-4 h-4" />
               Download PDF
             </Button>
           )}
-        </DialogFooter>
-      </Dialog>
+        </div>
+      </SimpleModal>
     </div>
   );
 }

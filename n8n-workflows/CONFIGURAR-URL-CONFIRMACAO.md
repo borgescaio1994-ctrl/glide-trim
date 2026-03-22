@@ -70,9 +70,10 @@ $body = @{
   client_name = "Teste"
   barber_name = "Barbeiro"
   service_name = "Corte"
-  appointment_date = "15/03/2025"
+  appointment_date = "2025-03-15"
   appointment_time = "14:00"
   service_price = 35
+  evolution_instance = "caio_zap"
 } | ConvertTo-Json
 
 Invoke-RestMethod -Uri "http://72.60.159.183:5678/webhook/confirmacao-agendamento" -Method POST -Body $body -ContentType "application/json"
@@ -85,3 +86,10 @@ Se o workflow disparar e você receber a mensagem no WhatsApp, a URL está corre
 ---
 
 Depois disso, ao agendar (ou ao verificar o número no fluxo de agendamento), a Edge Function passará a chamar a URL correta e o n8n deve disparar e enviar a confirmação no WhatsApp.
+
+---
+
+## Evolution: `apikey` e instância
+
+- No nó **Enviar WhatsApp (Evolution)**, cole a **API key global** da Evolution no header `apikey` (placeholder `COLE_AQUI_A_CHAVE_GLOBAL_DA_EVOLUTION`), igual ao workflow de verificação.
+- O campo **`evolution_instance`** no JSON de teste (ou enviado pela Edge Function) define a instância; a URL é montada automaticamente (`/message/sendText/{instância}`).

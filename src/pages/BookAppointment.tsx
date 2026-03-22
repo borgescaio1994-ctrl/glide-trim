@@ -6,12 +6,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import { toast } from 'sonner';
+import { useToast } from '@/contexts/ToastContext';
 import { ArrowLeft, Clock, Loader2, Scissors, DollarSign, User } from 'lucide-react';
 
 export default function BookAppointment() {
   const { barberId, serviceId } = useParams();
   const { user, profile } = useAuth();
+  const { success, error: showError } = useToast();
   const navigate = useNavigate();
   
   // Estados
@@ -24,21 +25,38 @@ export default function BookAppointment() {
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
   const [isBookingInProgress, setIsBookingInProgress] = useState(false);
+  const [isMaintenance, setIsMaintenance] = useState(false);
+  const [establishmentId, setEstablishmentId] = useState<string | null>(null);
 
   // Carregar dados iniciais
   useEffect(() => {
     const loadData = async () => {
-      if (!barberId || !serviceId) return;
-      
+      if (!barberId || !serviceId) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        // Carregar dados do barbeiro
+        // Carregar dados do profissional
         const { data: barber } = await supabase
           .from('profiles')
-          .select('full_name')
+          .select('full_name, establishment_id')
           .eq('id', barberId)
           .single();
         
-        if (barber) setBarberName(barber.full_name);
+        if (barber) {
+          setBarberName(barber.full_name);
+          if (barber.establishment_id) {
+            setEstablishmentId(barber.establishment_id);
+            const { data: estData } = await supabase
+              .from('establishments')
+              .select('subscription_status')
+              .eq('id', barber.establishment_id)
+              .maybeSingle();
+
+            setIsMaintenance(estData?.subscription_status === false);
+          }
+        }
 
         // Carregar serviço
         const { data: serviceData } = await supabase
@@ -69,7 +87,7 @@ export default function BookAppointment() {
 
       } catch (error) {
         console.error('Erro ao carregar dados:', error);
-        toast.error('Erro ao carregar dados do agendamento');
+        showError('Erro ao carregar dados do agendamento');
       } finally {
         setLoading(false);
       }
@@ -131,7 +149,7 @@ export default function BookAppointment() {
       const date = addDays(today, i);
       const dayOfWeek = date.getDay();
       
-      // Verificar se o barbeiro trabalha neste dia
+      // Verificar se o profissional atende neste dia
       const schedule = schedules.find(s => s.day_of_week === dayOfWeek);
       if (!schedule) continue;
       
@@ -197,26 +215,31 @@ export default function BookAppointment() {
 
   // Confirmar agendamento
   const handleBook = async () => {
-    console.log('🔍 DEBUG - Tentando agendar:', {
-      user: !!user,
-      profile: !!profile,
-      is_verified: profile?.is_verified,
-      profileData: profile
-    });
-
     if (!user || !selectedDate || !selectedTime || !service || isBookingInProgress) return;
-    
-    // Verificar se o telefone está verificado - só se não estiver verificado
-    if (!profile?.is_verified) {
-      console.log('❌ Telefone não verificado, redirecionando...');
-      toast.error('Você precisa verificar seu telefone para fazer agendamentos. Vá para a página de perfil.');
-      navigate('/profile');
+    if (isMaintenance) {
+      showError('Sistema em Manutenção');
       return;
     }
     
-    // Se já está verificado, continuar com agendamento
-    console.log('✅ Telefone já verificado, prosseguindo com agendamento...');
-    
+    // Verificar se o telefone está verificado - só se não estiver verificado
+    if (!profile?.is_verified) {
+      sessionStorage.setItem('returnToBooking', window.location.pathname);
+      sessionStorage.setItem(
+        'pendingBooking',
+        JSON.stringify({
+          barberId,
+          barber_id: barberId,
+          establishment_id: establishmentId ?? undefined,
+          serviceId,
+          selectedDate,
+          selectedTime,
+          duration_minutes: service.duration_minutes,
+        })
+      );
+      navigate('/verify-phone');
+      return;
+    }
+
     setIsBookingInProgress(true);
     setBooking(true);
     
@@ -235,7 +258,7 @@ export default function BookAppointment() {
       });
       
       if (isOccupied) {
-        toast.error('Este Horário acabou de ser ocupado. Escolha outro Horário.');
+        showError('Este Horário acabou de ser ocupado. Escolha outro Horário.');
         return;
       }
       
@@ -249,10 +272,31 @@ export default function BookAppointment() {
         end_time: `${Math.floor(slotEnd / 60).toString().padStart(2, '0')}:${(slotEnd % 60).toString().padStart(2, '0')}`,
         status: 'scheduled',
       });
-      
+
       if (error) throw error;
-      
-      // Adicionar à lista local para atualizar imediatamente
+
+      const clientPhone = profile?.phone || profile?.phone_number || '';
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await supabase.functions.invoke('send-whatsapp-confirmation', {
+          body: {
+            client_name: profile?.full_name || 'Cliente',
+            client_phone: clientPhone,
+            barber_name: barberName,
+            service_name: service?.name || '',
+            appointment_date: selectedDate,
+            appointment_time: selectedTime || '',
+            service_price: service?.price,
+            establishment_id: establishmentId || undefined,
+          },
+          headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : undefined,
+        });
+      } catch {
+        // confirmação por WhatsApp é opcional; agendamento já foi salvo
+      }
+
       const newAppointment = {
         client_id: user.id,
         barber_id: barberId,
@@ -262,16 +306,16 @@ export default function BookAppointment() {
         end_time: `${Math.floor(slotEnd / 60).toString().padStart(2, '0')}:${(slotEnd % 60).toString().padStart(2, '0')}`,
         status: 'scheduled',
       };
-      
+
       setAppointments(prev => [...prev, newAppointment]);
       setSelectedTime(null);
-      
-      toast.success('Agendado com sucesso!');
+
+      success('Agendado com sucesso!');
       navigate('/appointments');
       
     } catch (error) {
       console.error('Erro ao agendar:', error);
-      toast.error('Erro ao agendar. Tente novamente.');
+      showError('Erro ao agendar. Tente novamente.');
     } finally {
       setBooking(false);
       setIsBookingInProgress(false);
@@ -300,6 +344,20 @@ export default function BookAppointment() {
     );
   }
 
+  if (isMaintenance) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-5">
+        <div className="text-center">
+          <h1 className="text-xl font-bold mb-2">Sistema em Manutenção</h1>
+          <p className="text-muted-foreground mb-4">
+            A loja deste atendimento está em inadimplência no momento.
+          </p>
+          <Button onClick={() => navigate('/')}>Voltar</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-2xl mx-auto p-5">
@@ -318,7 +376,7 @@ export default function BookAppointment() {
             </div>
             <div>
               <h3 className="font-semibold">{service.name}</h3>
-              <p className="text-sm text-muted-foreground">com {barberName}</p>
+              <p className="text-sm text-muted-foreground">Profissional: {barberName}</p>
             </div>
           </div>
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -429,6 +487,20 @@ export default function BookAppointment() {
                   variant="link"
                   onClick={() => {
                     sessionStorage.setItem('returnToBooking', window.location.pathname);
+                    if (selectedDate && selectedTime && service) {
+                      sessionStorage.setItem(
+                        'pendingBooking',
+                        JSON.stringify({
+                          barberId,
+                          barber_id: barberId,
+                          establishment_id: establishmentId ?? undefined,
+                          serviceId,
+                          selectedDate,
+                          selectedTime,
+                          duration_minutes: service.duration_minutes,
+                        })
+                      );
+                    }
                     navigate('/verify-phone');
                   }}
                   className="text-primary text-sm p-0 h-auto"

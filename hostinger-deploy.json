@@ -1,5 +1,5 @@
 {
-  "name": "barberpro-app",
+  "name": "booknow-app",
   "type": "nodejs",
   "build": {
     "commands": [

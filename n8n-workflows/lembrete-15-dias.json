@@ -1,5 +1,5 @@
 {
-  "name": "BarberPro - Lembrete 15 dias (reagendar)",
+  "name": "BookNow - Lembrete 15 dias (reagendar)",
   "nodes": [
     {
       "parameters": {
@@ -30,14 +30,14 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [460, 300],
-      "notes": "Edge Function retorna { clients: [ { phone, full_name } ] }"
+      "notes": "Edge Function: { clients: [ { phone, full_name, evolution_instance } ] }. verify_jwt=false no config."
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json;\nconst clients = body.clients || [];\nif (clients.length === 0) return [];\nconst message = `📅 *BarberPro*\\n\\nOlá, {{full_name}}!\\n\\nJá faz um tempinho desde seu último atendimento. Que tal agendar um novo horário?\\n\\nAbra o app e reserve seu horário. Até lá!`;\nreturn clients.map((c) => ({ json: { phone: c.phone, full_name: c.full_name || 'Cliente', message: message.replace('{{full_name}}', c.full_name || 'Cliente') } }));"
+        "jsCode": "// evolution_instance vem da Edge (por barbearia ou master). Base Evolution SEM $env.\nconst EVOLUTION_BASE_DEFAULT = 'http://72.60.159.183:8080';\nconst body = $input.first().json;\nconst clients = body.clients || [];\nif (clients.length === 0) return [];\nlet base = String(EVOLUTION_BASE_DEFAULT);\nif (base.endsWith('/')) base = base.slice(0, -1);\n\nreturn clients.map((c) => {\n  const inst = String(c.evolution_instance || 'caio_zap').trim().replace(/[^a-zA-Z0-9_-]/g, '') || 'caio_zap';\n  const sendUrl = base + '/message/sendText/' + inst;\n  const fullName = c.full_name || 'Cliente';\n  const message = '📅 *BookNow*\\n\\nOlá, ' + fullName + '!\\n\\nJá faz um tempinho desde seu último atendimento. Que tal agendar um novo horário?\\n\\nAbra o app e reserve seu horário. Até lá!';\n  return { json: { phone: c.phone, full_name: fullName, message, sendUrl, evolution_instance: inst } };\n});"
       },
       "id": "split-clients",
-      "name": "Um item por cliente",
+      "name": "Montar mensagem e URL Evolution",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [680, 300]
@@ -45,10 +45,15 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://72.60.159.183:8080/message/sendText/caio_zap",
+        "url": "={{ $json.sendUrl }}",
         "sendHeaders": true,
         "headerParameters": {
-          "parameters": [{ "name": "apikey", "value": "caio123" }]
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "COLE_AQUI_A_CHAVE_GLOBAL_DA_EVOLUTION"
+            }
+          ]
         },
         "sendBody": true,
         "specifyBody": "json",
@@ -56,11 +61,11 @@
         "options": {}
       },
       "id": "send-reminder",
-      "name": "Enviar lembrete WhatsApp",
+      "name": "Enviar lembrete (Evolution)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [900, 300],
-      "notes": "Evolution API — apikey: caio123"
+      "notes": "URL dinâmica por cliente (instância da loja ou master)."
     }
   ],
   "connections": {
@@ -68,10 +73,10 @@
       "main": [[{ "node": "Buscar clientes (15 dias)", "type": "main", "index": 0 }]]
     },
     "Buscar clientes (15 dias)": {
-      "main": [[{ "node": "Um item por cliente", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Montar mensagem e URL Evolution", "type": "main", "index": 0 }]]
     },
-    "Um item por cliente": {
-      "main": [[{ "node": "Enviar lembrete WhatsApp", "type": "main", "index": 0 }]]
+    "Montar mensagem e URL Evolution": {
+      "main": [[{ "node": "Enviar lembrete (Evolution)", "type": "main", "index": 0 }]]
     }
   },
   "settings": { "executionOrder": "v1" },

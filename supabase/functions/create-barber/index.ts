@@ -84,7 +84,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Barbeiro criado com sucesso',
+        message: 'Profissional criado com sucesso',
         userId: userData.user?.id 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

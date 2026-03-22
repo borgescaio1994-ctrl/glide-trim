@@ -13,7 +13,7 @@ interface DailyStats {
 }
 
 export default function Finances() {
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'week' | 'month'>('week');
@@ -27,63 +27,70 @@ export default function Finances() {
   const fetchStats = useCallback(async () => {
     if (!profile?.id) return;
     setLoading(true);
+    try {
+      const today = new Date();
+      let startDate: Date;
+      let endDate: Date;
 
-    const today = new Date();
-    let startDate: Date;
-    let endDate: Date;
+      if (period === 'week') {
+        startDate = startOfWeek(today, { locale: ptBR });
+        endDate = endOfWeek(today, { locale: ptBR });
+      } else {
+        startDate = startOfMonth(today);
+        endDate = endOfMonth(today);
+      }
 
-    if (period === 'week') {
-      startDate = startOfWeek(today, { locale: ptBR });
-      endDate = endOfWeek(today, { locale: ptBR });
-    } else {
-      startDate = startOfMonth(today);
-      endDate = endOfMonth(today);
-    }
+      const { data } = await supabase
+        .from('appointments')
+        .select('appointment_date, service:services(price)')
+        .eq('barber_id', profile.id)
+        .eq('status', 'completed')
+        .gte('appointment_date', format(startDate, 'yyyy-MM-dd'))
+        .lte('appointment_date', format(endDate, 'yyyy-MM-dd'));
 
-    const { data } = await supabase
-      .from('appointments')
-      .select('appointment_date, service:services(price)')
-      .eq('barber_id', profile.id)
-      .eq('status', 'completed')
-      .gte('appointment_date', format(startDate, 'yyyy-MM-dd'))
-      .lte('appointment_date', format(endDate, 'yyyy-MM-dd'));
-
-    if (data) {
-      const totalEarnings = data.reduce(
-        (sum, item) => sum + (Number((item.service as any)?.price) || 0),
-        0
-      );
-
-      const days = eachDayOfInterval({ start: startDate, end: endDate });
-      const dailyStats = days.map((day) => {
-        const dateStr = format(day, 'yyyy-MM-dd');
-        const dayAppointments = data.filter((a) => a.appointment_date === dateStr);
-        const dayEarnings = dayAppointments.reduce(
+      if (data) {
+        const totalEarnings = data.reduce(
           (sum, item) => sum + (Number((item.service as any)?.price) || 0),
           0
         );
-        return {
-          date: dateStr,
-          earnings: dayEarnings,
-          count: dayAppointments.length,
-        };
-      });
 
-      setStats({
-        total: totalEarnings,
-        count: data.length,
-        average: data.length > 0 ? totalEarnings / data.length : 0,
-        dailyStats,
-      });
+        const days = eachDayOfInterval({ start: startDate, end: endDate });
+        const dailyStats = days.map((day) => {
+          const dateStr = format(day, 'yyyy-MM-dd');
+          const dayAppointments = data.filter((a) => a.appointment_date === dateStr);
+          const dayEarnings = dayAppointments.reduce(
+            (sum, item) => sum + (Number((item.service as any)?.price) || 0),
+            0
+          );
+          return {
+            date: dateStr,
+            earnings: dayEarnings,
+            count: dayAppointments.length,
+          };
+        });
+
+        setStats({
+          total: totalEarnings,
+          count: data.length,
+          average: data.length > 0 ? totalEarnings / data.length : 0,
+          dailyStats,
+        });
+      }
+    } catch (e) {
+      console.error('Finances fetchStats:', e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [profile?.id, period]);
 
   useEffect(() => {
-    if (profile?.id) {
-      fetchStats();
+    if (authLoading) return;
+    if (!profile?.id) {
+      setLoading(false);
+      return;
     }
-  }, [profile?.id, period, fetchStats]);
+    fetchStats();
+  }, [profile?.id, period, fetchStats, authLoading]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {

@@ -36,6 +36,7 @@ interface HomeSettings {
 export default function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const homePath = profile?.profile_role === 'BARBER' ? '/barber' : '/';
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
@@ -57,14 +58,19 @@ export default function BarberDashboard({ isAdmin = false }: BarberDashboardProp
 
   const fetchHomeSettings = async () => {
     try {
+      const establishmentId = profile?.establishment_id;
+      if (!establishmentId) return;
+
       const { data } = await supabase
-        .from('home_settings')
-        .select('title')
-        .limit(1)
-        .single();
+        .from('establishments')
+        .select('name, home_title')
+        .eq('id', establishmentId)
+        .maybeSingle();
 
       if (data) {
-        setHomeSettings(data);
+        setHomeSettings({
+          title: ((data as any).home_title ?? data.name ?? 'BookNow') as string,
+        });
       }
     } catch (error) {
       console.error('Error fetching home settings:', error);
@@ -211,14 +217,15 @@ export default function BarberDashboard({ isAdmin = false }: BarberDashboardProp
       <header className="px-5 pt-12 pb-6">
         <div className="flex items-center justify-between mb-4">
           <button
-            onClick={() => navigate('/')}
+            type="button"
+            onClick={() => navigate(homePath)}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Scissors className="w-4 h-4 text-primary" />
             </div>
             <span className="text-lg font-semibold text-foreground">
-              {homeSettings?.title || 'BarberPro'}
+              {homeSettings?.title || 'BookNow'}
             </span>
           </button>
 

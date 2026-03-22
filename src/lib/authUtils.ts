@@ -24,16 +24,17 @@ export async function validateAuthCode(phoneNumber: string, inputCode: string, u
     const now = new Date().toISOString();
 
     if (userId) {
-      const { error: profileErr } = await supabase
+      const { data: profileData, error: profileErr } = await supabase
         .from('profiles')
         .update({
           is_verified: true,
           phone: phoneNumber,
           phone_number: phoneNumber,
-          whatsapp_number: phoneNumber,
         })
-        .eq('id', userId);
-      if (profileErr) return false;
+        .eq('id', userId)
+        .select('id')
+        .maybeSingle();
+      if (profileErr || !profileData) return false;
     }
 
     const { error: codeErr } = await supabase

@@ -1,4 +1,4 @@
-# Barber Pro – Lógica de Agendamentos (Supabase + Cliente)
+# BookNow – Lógica de Agendamentos (Supabase + Cliente)
 
 ## 1. Tabelas no Supabase (já existentes)
 
@@ -66,4 +66,4 @@ Opcionalmente, para não reenviar o mesmo lembrete, pode-se usar a coluna `remin
 
 ## 4. Tabela `agendamentos` (types.ts)
 
-No `types.ts` existe o tipo `agendamentos` (nome em português). No código do app **todas** as queries usam a tabela **`appointments`** (inglês). A tabela `agendamentos` não é usada no fluxo atual; pode ser legado ou de outro contexto. Para o Barber Pro, use apenas **`appointments`**.
+No `types.ts` existe o tipo `agendamentos` (nome em português). No código do app **todas** as queries usam a tabela **`appointments`** (inglês). A tabela `agendamentos` não é usada no fluxo atual; pode ser legado ou de outro contexto. Para o BookNow, use apenas **`appointments`**.

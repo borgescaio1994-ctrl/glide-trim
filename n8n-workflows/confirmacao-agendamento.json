@@ -1,5 +1,5 @@
 {
-  "name": "BarberPro - Confirmação de Agendamento",
+  "name": "BookNow - Confirmação de Agendamento",
   "nodes": [
     {
       "parameters": {
@@ -17,10 +17,10 @@
     },
     {
       "parameters": {
-        "jsCode": "// Payload: confirmação OU cancelamento (type: 'cancel'). Campos: client_phone, client_name, barber_name?, service_name, appointment_date, appointment_time, service_price?\nconst body = $input.first().json.body || $input.first().json;\nconst phone = (body.client_phone || body.phone || '').replace(/\\D/g, '');\nconst number = phone.length === 11 ? '55' + phone : phone;\n\nconst clientName = body.client_name || body.clientName || 'Cliente';\nconst barberName = body.barber_name || body.barberName || 'Barbeiro';\nconst serviceName = body.service_name || body.serviceName || 'Serviço';\nconst date = body.appointment_date || body.date || '';\nconst time = body.appointment_time || body.time || '';\nconst price = body.service_price != null ? body.service_price : body.price;\nconst isCancel = body.type === 'cancel';\n\nlet dateFormatted = (date && typeof date === 'string') ? String(date).trim() : '';\nif (dateFormatted.length >= 10 && dateFormatted.includes('-')) {\n  const parts = dateFormatted.slice(0, 10).split('-');\n  if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {\n    dateFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`;\n  }\n}\nconst timeFormatted = (time || '').toString().slice(0, 5);\nconst priceStr = price != null ? `R$ ${Number(price).toFixed(2).replace('.', ',')}` : '';\n\nconst message = isCancel\n  ? `❌ *Agendamento cancelado*\\n\\nOlá, ${clientName}!\\n\\nSeu agendamento foi cancelado.\\n📅 Data: ${dateFormatted}\\n🕐 Horário: ${timeFormatted}\\n✂️ Serviço: ${serviceName}\\n👤 Barbeiro: ${barberName}\\n\\nSe precisar, agende um novo horário pelo app.`\n  : `✅ *Agendamento confirmado!*\\n\\nOlá, ${clientName}!\\n\\nSeu horário foi reservado:\\n📅 Data: ${dateFormatted}\\n🕐 Horário: ${timeFormatted}\\n✂️ Serviço: ${serviceName}\\n👤 Barbeiro: ${barberName}${priceStr ? '\\n💰 Valor: ' + priceStr : ''}\\n\\nAté lá!`;\n\nreturn [{ json: { number, message, raw: body } }];"
+        "jsCode": "// Payload: evolution_instance (Edge send-whatsapp-confirmation), confirmação OU cancelamento (type: 'cancel')\n// Base da Evolution SEM $env (n8n pode bloquear $env no Code)\nconst EVOLUTION_BASE_DEFAULT = 'http://72.60.159.183:8080';\nconst item = $input.first().json;\nconst body = item.body && typeof item.body === 'object' ? item.body : item;\nconst phone = String(body.client_phone || body.phone || '').replace(/\\D/g, '');\nconst number = phone.startsWith('55') ? phone : (phone ? '55' + phone : '');\n\nconst clientName = body.client_name || body.clientName || 'Cliente';\nconst barberName = body.barber_name || body.barberName || 'Barbeiro';\nconst serviceName = body.service_name || body.serviceName || 'Serviço';\nconst date = body.appointment_date || body.date || '';\nconst time = body.appointment_time || body.time || '';\nconst price = body.service_price != null ? body.service_price : body.price;\nconst isCancel = body.type === 'cancel';\n\nconst inst = String(body.evolution_instance || 'caio_zap').trim().replace(/[^a-zA-Z0-9_-]/g, '') || 'caio_zap';\nlet base = String(EVOLUTION_BASE_DEFAULT);\nif (base.endsWith('/')) base = base.slice(0, -1);\nconst sendUrl = base + '/message/sendText/' + inst;\n\nlet dateFormatted = (date && typeof date === 'string') ? String(date).trim() : '';\nif (dateFormatted.length >= 10 && dateFormatted.includes('-')) {\n  const parts = dateFormatted.slice(0, 10).split('-');\n  if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {\n    dateFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`;\n  }\n}\nconst timeFormatted = (time || '').toString().slice(0, 5);\nconst priceStr = price != null ? `R$ ${Number(price).toFixed(2).replace('.', ',')}` : '';\n\nconst message = isCancel\n  ? `❌ *Agendamento cancelado*\\n\\nOlá, ${clientName}!\\n\\nSeu agendamento foi cancelado.\\n📅 Data: ${dateFormatted}\\n🕐 Horário: ${timeFormatted}\\n✂️ Serviço: ${serviceName}\\n👤 Barbeiro: ${barberName}\\n\\nSe precisar, agende um novo horário pelo app.`\n  : `✅ *Agendamento confirmado!*\\n\\nOlá, ${clientName}!\\n\\nSeu horário foi reservado:\\n📅 Data: ${dateFormatted}\\n🕐 Horário: ${timeFormatted}\\n✂️ Serviço: ${serviceName}\\n👤 Barbeiro: ${barberName}${priceStr ? '\\n💰 Valor: ' + priceStr : ''}\\n\\nAté lá!`;\n\nreturn [{ json: { number, message, sendUrl, evolution_instance: inst, raw: body } }];"
       },
       "id": "format-message",
-      "name": "Montar mensagem",
+      "name": "Montar mensagem e URL Evolution",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [460, 300]
@@ -28,13 +28,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://72.60.159.183:8080/message/sendText/caio_zap",
+        "url": "={{ $json.sendUrl }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $env.EVOLUTION_API_KEY }}"
+              "value": "COLE_AQUI_A_CHAVE_GLOBAL_DA_EVOLUTION"
             }
           ]
         },
@@ -44,16 +44,16 @@
         "options": {}
       },
       "id": "send-whatsapp",
-      "name": "Enviar WhatsApp",
+      "name": "Enviar WhatsApp (Evolution)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 300],
-      "notes": "Evolution API: 72.60.159.183:8080, instância caio_zap"
+      "position": [700, 300],
+      "notes": "URL dinâmica: EVOLUTION_API_BASE + /message/sendText/ + evolution_instance (master ou loja, vindo da Edge Function)."
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"success\": true, \"message\": \"Confirmação enviada\" } }}",
+        "responseBody": "={{ { success: true, message: \"Confirmação enviada\" } }}",
         "options": {
           "responseCode": 200
         }
@@ -62,7 +62,7 @@
       "name": "Responder Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [900, 300]
+      "position": [940, 300]
     }
   ],
   "connections": {
@@ -70,25 +70,25 @@
       "main": [
         [
           {
-            "node": "Montar mensagem",
+            "node": "Montar mensagem e URL Evolution",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Montar mensagem": {
+    "Montar mensagem e URL Evolution": {
       "main": [
         [
           {
-            "node": "Enviar WhatsApp",
+            "node": "Enviar WhatsApp (Evolution)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Enviar WhatsApp": {
+    "Enviar WhatsApp (Evolution)": {
       "main": [
         [
           {

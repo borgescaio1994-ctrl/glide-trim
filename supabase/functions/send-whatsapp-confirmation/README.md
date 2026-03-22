@@ -32,3 +32,7 @@ Se os logs mostrarem **"Webhook retornou status 404"**, a URL usada não é a co
    ```
 
 Depois disso, ao agendar no app, a função usará a URL correta e o n8n deixará de retornar 404.
+
+## Instância Evolution por barbearia
+
+A função envia no body do webhook o campo **`evolution_instance`**: usa `establishments.whatsapp_evolution_instance` quando há `establishment_id`, senão `system_settings.master_evolution_instance` ou `MASTER_EVOLUTION_INSTANCE` / padrão `caio_zap`. O workflow n8n monta a URL `.../message/sendText/{evolution_instance}` como na verificação WhatsApp.

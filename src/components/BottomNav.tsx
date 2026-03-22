@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Calendar, User, BarChart3, Crown } from 'lucide-react';
+import { Home, Calendar, User, BarChart3, Crown, Building2, Scissors } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const clientNavItems = [
@@ -9,36 +9,56 @@ const clientNavItems = [
 ];
 
 const barberNavItems = [
-  { icon: Home, label: 'Agenda', path: '/' },
+  { icon: Home, label: 'Agenda', path: '/barber' },
   { icon: Calendar, label: 'Horários', path: '/schedule' },
   { icon: BarChart3, label: 'Financeiro', path: '/finances' },
   { icon: Calendar, label: 'Serviços', path: '/services' },
   { icon: User, label: 'Perfil', path: '/profile' },
 ];
 
-const adminNavItems = [
+// SUPER_ADMIN: apenas Gestão de Lojas (não vê agenda, profissionais, serviços)
+const superAdminNavItems = [
+  { icon: Building2, label: 'Gestão de Lojas', path: '/super-admin' },
+  { icon: User, label: 'Perfil', path: '/profile' },
+];
+
+// ADMIN_BARBER: menu completo de gestão + agenda (igual profissional + painel)
+const adminBarberNavItems = [
   { icon: Home, label: 'Início', path: '/' },
   { icon: Crown, label: 'Painel', path: '/admin' },
+  { icon: Calendar, label: 'Horários', path: '/schedule' },
+  { icon: BarChart3, label: 'Financeiro', path: '/finances' },
+  { icon: Scissors, label: 'Serviços', path: '/services' },
   { icon: User, label: 'Perfil', path: '/profile' },
 ];
 
 export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, isAdmin } = useAuth();
+  const { profile, isSuperAdmin } = useAuth();
 
-  // Admin gets admin nav, barber gets barber nav, others get client nav
-  const navItems = isAdmin || profile?.role === 'admin'
-    ? adminNavItems 
-    : profile?.role === 'barber' 
-      ? barberNavItems 
-      : clientNavItems;
+  const isBarberLike =
+    profile?.profile_role === 'BARBER' ||
+    profile?.profile_role === 'ADMIN_BARBER' ||
+    profile?.role === 'barber';
+
+  const navItems =
+    isSuperAdmin
+      ? superAdminNavItems
+      : profile?.profile_role === 'ADMIN_BARBER'
+        ? adminBarberNavItems
+        : isBarberLike
+          ? barberNavItems
+          : clientNavItems;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border/50 safe-area-inset-bottom">
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive =
+            item.path === '/barber'
+              ? location.pathname === '/barber'
+              : location.pathname === item.path;
           return (
             <button
               key={item.path}

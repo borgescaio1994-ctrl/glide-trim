@@ -1,63 +1,52 @@
 # Workflow n8n – Confirmação de agendamento (WhatsApp)
 
+Alinhado ao workflow **Verificação WhatsApp**: URL dinâmica da Evolution (`/message/sendText/{instância}`), **sem `$env` no header** (evita `access to env vars denied` quando `N8N_BLOCK_ENV_ACCESS_IN_NODE` está ativo).
+
 ## O que faz
 
-1. **Webhook** recebe um POST com os dados do agendamento.
-2. **Montar mensagem** formata o texto (nome do cliente, barbeiro, serviço, data, hora, valor).
-3. **Enviar WhatsApp** envia a mensagem via API (Evolution API ou similar).
+1. **Webhook** recebe um POST com os dados do agendamento (e opcionalmente `evolution_instance`, enviado pela Edge Function `send-whatsapp-confirmation`).
+2. **Montar mensagem e URL Evolution** formata o texto (confirmação ou cancelamento se `type: 'cancel'`) e monta `sendUrl` com a instância correta.
+3. **Enviar WhatsApp (Evolution)** envia via `POST` com header `apikey`.
 4. **Responder Webhook** devolve sucesso para quem chamou.
 
 ## Importar no n8n
 
 1. Abra o n8n.
-2. Menu (três pontinhos) → **Import from File** (ou **Import from URL** / colar JSON).
-3. Selecione o arquivo `confirmacao-agendamento.json`.
+2. Menu → **Import from File**.
+3. Selecione `confirmacao-agendamento.json`.
 
-## Configurar envio no WhatsApp
+## Configurar Evolution
 
-No nó **"Enviar WhatsApp"**:
+No nó **"Enviar WhatsApp (Evolution)"**:
 
-- **URL**: a URL da sua API de WhatsApp.
-  - **Evolution API** (exemplo): `http://SEU_SERVIDOR:8080/message/sendText/SUA_INSTANCIA`
-  - Troque `SEU_SERVIDOR` e `SUA_INSTANCIA` pelos seus dados.
-- **Header `apikey` (obrigatório)**: a Evolution API exige autenticação. O workflow usa `$env.EVOLUTION_API_KEY`.
-  - Defina a variável **EVOLUTION_API_KEY** no ambiente do n8n (Docker: `environment: EVOLUTION_API_KEY: "sua-chave"`).
-  - Ou no nó, em **Headers**, substitua o valor de `apikey` pela sua API key em texto.
-- Sem o header `apikey` correto, a API responde **401 Unauthorized**.
+- **URL**: `={{ $json.sendUrl }}` (já configurado; vem do nó Code).
+- **Header `apikey`**: substitua `COLE_AQUI_A_CHAVE_GLOBAL_DA_EVOLUTION` pela **API key global** da Evolution (texto fixo), **ou** use Credentials do n8n — **não** use `={{ $env.EVOLUTION_API_KEY }}` se o servidor bloquear `$env` em expressões.
 
-No n8n, ative o workflow para o webhook ficar disponível.
+A **base** da API (`http://72.60.159.183:8080`) e o nome da instância padrão (`caio_zap`) estão no nó Code; a instância **por barbearia** vem do payload `evolution_instance` (resolvido na Edge Function a partir de `establishments.whatsapp_evolution_instance` ou master).
+
+Ative o workflow para o webhook ficar disponível.
 
 ## URL do webhook
 
-Depois de ativar o workflow, o n8n mostra a URL do webhook, algo como:
-
-```
-https://SEU_N8N/v2/webhook/confirmacao-agendamento
-```
-
-ou
-
-```
-https://SEU_N8N/webhook/confirmacao-agendamento
-```
-
-Guarde essa URL para configurar no Supabase ou no app.
+Depois de ativar, use a **Production URL** do nó Webhook (pode incluir UUID). Configure no Supabase o secret **`N8N_WEBHOOK_CONFIRMACAO`** com essa URL (veja `CONFIGURAR-URL-CONFIRMACAO.md`).
 
 ## Payload (body do POST)
 
-Envie um JSON no body do POST com pelo menos:
+A Edge Function `send-whatsapp-confirmation` envia, entre outros:
 
-| Campo             | Exemplo        | Obrigatório |
-|------------------|----------------|-------------|
-| `client_phone`   | `"11999999999"`| Sim         |
-| `client_name`    | `"João"`       | Não         |
-| `barber_name`    | `"Carlos"`     | Não         |
-| `service_name`   | `"Corte"`      | Não         |
-| `appointment_date` | `"2025-03-15"` | Não      |
-| `appointment_time` | `"14:00"`     | Não         |
-| `service_price`  | `35.00`        | Não         |
+| Campo | Exemplo | Obrigatório |
+|--------|---------|-------------|
+| `client_phone` | `"5511999999999"` | Sim |
+| `client_name` | `"João"` | Não |
+| `barber_name` | `"Carlos"` | Não |
+| `service_name` | `"Corte"` | Não |
+| `appointment_date` | `"2025-03-15"` | Não |
+| `appointment_time` | `"14:00"` | Não |
+| `service_price` | `35` | Não |
+| `evolution_instance` | `"minha_instancia"` | Não (padrão `caio_zap`; a Edge preenche pela loja) |
+| `type` | `"cancel"` | Não (se enviado, mensagem de cancelamento) |
 
-Exemplo mínimo:
+Exemplo mínimo de teste manual:
 
 ```json
 {
@@ -67,47 +56,16 @@ Exemplo mínimo:
   "service_name": "Corte masculino",
   "appointment_date": "2025-03-15",
   "appointment_time": "14:00",
-  "service_price": 35
+  "service_price": 35,
+  "evolution_instance": "caio_zap"
 }
 ```
 
-## Chamar o webhook quando o agendamento for criado
+## Integração com o app
 
-### Opção 1: Supabase Edge Function
+- **Edge Function** `send-whatsapp-confirmation`: chamada após confirmar agendamento (ex.: `BookAppointment`, fluxo com verificação).
+- Secrets: `N8N_WEBHOOK_CONFIRMACAO` (URL do webhook), Supabase padrão (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).
 
-Crie uma Edge Function que é chamada pelo app após criar o agendamento (ou por um trigger no banco). Dentro dela, faça um `fetch` para a URL do webhook n8n com o payload acima.
+## Modelo da mensagem
 
-### Opção 2: Supabase Database Webhook
-
-No painel do Supabase: **Database → Webhooks → Create a new hook**:
-
-- **Table**: `appointments`
-- **Events**: Insert
-- **URL**: a URL do webhook n8n
-- **HTTP Headers**: `Content-Type: application/json`
-- **Body**: escolha “Payload” e monte um JSON que use as colunas da tabela (ex.: `client_phone` do perfil do cliente, nome do serviço, etc.). Se a tabela não tiver todos os campos, use uma Edge Function que leia relacionamentos e depois chame o n8n.
-
-### Opção 3: Direto do app (front)
-
-Após o `insert` do agendamento no Supabase, chame a URL do webhook com `fetch` e o mesmo JSON de exemplo. Só use se a URL do n8n for pública e você tratar erros no front.
-
-## Modelo da mensagem enviada
-
-A mensagem enviada pelo workflow segue este formato:
-
-```
-✅ *Agendamento confirmado!*
-
-Olá, [client_name]!
-
-Seu horário foi reservado:
-📅 Data: DD/MM/AAAA
-🕐 Horário: HH:MM
-✂️ Serviço: [service_name]
-👤 Barbeiro: [barber_name]
-💰 Valor: R$ XX,XX
-
-Até lá!
-```
-
-Ajuste o texto no nó **"Montar mensagem"** do workflow se quiser outro formato.
+Confirmação e cancelamento seguem o texto definido no nó **Montar mensagem e URL Evolution** (ajuste livremente).

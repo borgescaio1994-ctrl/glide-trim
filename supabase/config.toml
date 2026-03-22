@@ -8,3 +8,15 @@ verify_jwt = false
 
 [functions.create-barber]
 verify_jwt = false
+
+[functions.send-whatsapp-confirmation]
+verify_jwt = false
+
+[functions.create-establishment-owner]
+verify_jwt = false
+
+[functions.create-establishment-barber]
+verify_jwt = false
+
+[functions.get-15day-reminder-list]
+verify_jwt = false

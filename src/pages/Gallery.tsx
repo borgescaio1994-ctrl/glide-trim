@@ -2,10 +2,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useEstablishment } from '@/hooks/useEstablishment';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
+import { useToast } from '@/contexts/ToastContext';
 import { ArrowLeft, Plus, Trash2, Image, Loader2, Scissors } from 'lucide-react';
 
 interface GalleryImage {
@@ -18,6 +19,8 @@ interface GalleryImage {
 export default function Gallery() {
   const navigate = useNavigate();
   const { profile, user } = useAuth();
+  const { establishmentDisplayName } = useEstablishment();
+  const { success, error: showError } = useToast();
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -34,7 +37,7 @@ export default function Gallery() {
       if (error) throw error;
       setImages(data || []);
     } catch (error) {
-      toast.error('Erro ao carregar galeria');
+      showError('Erro ao carregar galeria');
       console.error('Error fetching gallery:', error);
     } finally {
       setLoading(false);
@@ -57,13 +60,13 @@ export default function Gallery() {
       for (const file of Array.from(files)) {
         // Validate file type
         if (!file.type.startsWith('image/')) {
-          toast.error(`${file.name} não é uma imagem válida`);
+          showError(`${file.name} não é uma imagem válida`);
           continue;
         }
 
         // Validate file size (max 5MB)
         if (file.size > 5 * 1024 * 1024) {
-          toast.error(`${file.name} é muito grande. Máximo 5MB`);
+          showError(`${file.name} é muito grande. Máximo 5MB`);
           continue;
         }
 
@@ -77,7 +80,7 @@ export default function Gallery() {
 
         if (uploadError) {
           console.error('Upload error:', uploadError);
-          toast.error(`Erro ao fazer upload de ${file.name}`);
+          showError(`Erro ao fazer upload de ${file.name}`);
           continue;
         }
 
@@ -96,16 +99,16 @@ export default function Gallery() {
 
         if (dbError) {
           console.error('Database error:', dbError);
-          toast.error('Erro ao salvar imagem');
+          showError('Erro ao salvar imagem');
           continue;
         }
       }
 
-      toast.success('Imagens adicionadas com sucesso!');
+      success('Imagens adicionadas com sucesso!');
       fetchGallery();
     } catch (error) {
       console.error('Error uploading:', error);
-      toast.error('Erro ao fazer upload');
+      showError('Erro ao fazer upload');
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -133,11 +136,11 @@ export default function Gallery() {
 
       if (error) throw error;
 
-      toast.success('Imagem removida');
+      success('Imagem removida');
       setImages(images.filter(img => img.id !== image.id));
     } catch (error) {
       console.error('Error deleting:', error);
-      toast.error('Erro ao remover imagem');
+      showError('Erro ao remover imagem');
     }
   };
 
@@ -152,7 +155,7 @@ export default function Gallery() {
           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
             <Scissors className="w-4 h-4 text-primary" />
           </div>
-          <span className="text-lg font-semibold text-foreground">BarberPro</span>
+          <span className="text-lg font-semibold text-foreground">{establishmentDisplayName}</span>
         </button>
         
         <div className="flex items-center gap-4">

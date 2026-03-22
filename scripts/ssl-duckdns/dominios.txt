@@ -1,0 +1,8 @@
+# (Alternativa ao wildcard) Lista de domínios DuckDNS, um por linha.
+# Usado por obter-certificado.sh quando SUPABASE_URL não está definido.
+#
+# Para certificado CURINGA, use obter-certificado-wildcard.sh — não precisa desta lista.
+#
+# Exemplo (domínios separados):
+# barbearia-stoffels.duckdns.org
+# loja-joao.duckdns.org

@@ -2,16 +2,63 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? '';
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '';
+/** Abas em segundo plano / rede lenta: 20s era curto demais e abortava Auth/PostgREST. */
+const SUPABASE_FETCH_TIMEOUT_MS = Number(import.meta.env.VITE_SUPABASE_FETCH_TIMEOUT_MS ?? 120000);
+
+async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  // Respect an already-aborted external signal, if present.
+  if (init?.signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SUPABASE_FETCH_TIMEOUT_MS);
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const isSafeMethod = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+
+  const cleanup = () => clearTimeout(timeoutId);
+
+  const runOnce = async () =>
+    fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+
+  try {
+    return await runOnce();
+  } catch (error) {
+    // Single retry only for safe methods and only on network/abort failures.
+    if (isSafeMethod) {
+      try {
+        return await runOnce();
+      } finally {
+        cleanup();
+      }
+    }
+    throw error;
+  } finally {
+    cleanup();
+  }
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
+export const supabase = createClient<Database>(
+  SUPABASE_URL || 'https://placeholder.supabase.co',
+  SUPABASE_PUBLISHABLE_KEY || 'placeholder-key',
+  {
+    global: {
+      fetch: fetchWithTimeout,
+    },
+    auth: {
+      storage: localStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+    },
   }
-});
+);
+
+export const hasSupabaseEnv = !!(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);

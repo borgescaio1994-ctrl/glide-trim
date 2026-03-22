@@ -1,11 +1,13 @@
-# Workflows n8n – BarberPro
+# Workflows n8n – BookNow
 
 Um **workflow por ação**, para ficar mais claro e fácil de manter.
+
+> **n8n pediu “criar usuário” de novo?** Isso não vem deste repositório — veja **[N8N-RECUPERAR-ACESSO.md](./N8N-RECUPERAR-ACESSO.md)** (volume Docker, `N8N_ENCRYPTION_KEY`, mesma URL).
 
 | Workflow | Arquivo | Uso |
 |----------|---------|-----|
 | **Verificação WhatsApp** | `verificacao-whatsapp.json` | Envio do código de 6 dígitos para vincular/verificar o número |
-| **Confirmação de agendamento** | `confirmacao-agendamento.json` ou `confirmacao-agendamento-com-if.json` | Mensagem quando o cliente **confirma** um agendamento |
+| **Confirmação de agendamento** | `confirmacao-agendamento.json` | Mensagem quando o cliente **confirma** um agendamento (e cancelamento via `type: 'cancel'` no mesmo fluxo) |
 | **Cancelamento de agendamento** | `cancelamento-agendamento.json` | Mensagem quando o agendamento é **cancelado** (texto diferente se foi o barbeiro ou o cliente) |
 | **Lembrete 15 dias** | `lembrete-15-dias.json` | Todo dia às 9h: envia mensagem para clientes que tiveram atendimento **concluído** há 14–16 dias |
 
@@ -15,8 +17,10 @@ Um **workflow por ação**, para ficar mais claro e fácil de manter.
 
 - **Webhook:** `verificacao-whatsapp`
 - **Chamado por:** Edge Function `send-whatsapp-verification`
-- **Payload:** `phone`, `code`, `action: 'send_verification'`
+- **Payload:** `phone`, `code`, `action`, `route` (`MASTER_TO_OWNER` | `SHOP_TO_CLIENT`), `evolution_instance`, opcional `sender_phone`
+- **Rotas:** ver **[README-VERIFICACAO-ROTAS.md](./README-VERIFICACAO-ROTAS.md)**
 - **Secret Supabase:** `N8N_WEBHOOK_VERIFICACAO` (Production URL do webhook no n8n)
+- **Dono da barbearia (ADMIN_BARBER):** usa a mesma verificação na tela `/verify-phone` — guia passo a passo: **[CONFIGURAR-N8N-VERIFICACAO-DONO.md](./CONFIGURAR-N8N-VERIFICACAO-DONO.md)**
 
 ---
 
@@ -45,12 +49,13 @@ Um **workflow por ação**, para ficar mais claro e fácil de manter.
 
 - **Trigger:** Agendado (cron) – todo dia às **9h** (ajustável no nó “Todo dia 9h”)
 - **Fluxo:**
-  1. Chama a Edge Function `get-15day-reminder-list` (GET), que retorna clientes com atendimento concluído entre 14 e 16 dias atrás.
-  2. Um item por cliente (phone, full_name).
-  3. Para cada um, envia mensagem no WhatsApp: “Já faz um tempinho desde seu último atendimento. Que tal agendar um novo horário?”
+  1. Chama a Edge Function `get-15day-reminder-list` (GET), que retorna clientes com atendimento concluído entre 14 e 16 dias atrás, com **`evolution_instance`** por barbearia (ou master).
+  2. **Montar mensagem e URL Evolution** – um item por cliente (`sendUrl` dinâmico).
+  3. **Enviar lembrete (Evolution)** – mesmo padrão de apikey/body dos outros workflows.
 - **Requisitos:**
-  - Deploy da Edge Function `get-15day-reminder-list`.
-  - No n8n, o nó “Buscar clientes (15 dias)” deve usar a URL do seu projeto: `https://SEU_PROJECT_REF.supabase.co/functions/v1/get-15day-reminder-list`.
+  - Deploy da Edge Function `get-15day-reminder-list` e `verify_jwt = false` em `config.toml` (já no repo).
+  - URL no nó “Buscar clientes (15 dias)”: `https://SEU_PROJECT_REF.supabase.co/functions/v1/get-15day-reminder-list`
+- **Doc:** [README-LEMBRETE-15-DIAS.md](./README-LEMBRETE-15-DIAS.md)
 
 ---
 
@@ -66,4 +71,4 @@ Um **workflow por ação**, para ficar mais claro e fácil de manter.
 
 ## Evolution API
 
-Nos nós “Enviar WhatsApp” está configurado **apikey** = `caio123` e URL `http://72.60.159.183:8080/message/sendText/caio_zap`. Ajuste se o seu ambiente for diferente.
+Nos nós **Enviar … (Evolution)** use a **API key global** no header `apikey` (placeholder `COLE_AQUI_A_CHAVE_GLOBAL_DA_EVOLUTION` nos JSONs). URLs de envio são **dinâmicas** (`/message/sendText/{instância}`) onde aplicável. Veja também **README-WORKFLOWS-N8N.md**.

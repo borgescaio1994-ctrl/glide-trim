@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useEstablishment } from '@/hooks/useEstablishment';
 import { Search, Scissors, LogIn } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { toast } from 'sonner';
-
 interface Barber {
   id: string;
   full_name: string;
@@ -22,6 +20,7 @@ interface HomeSettings {
 
 export default function ClientHome() {
   const { user, profile } = useAuth();
+  const { establishmentId, loading: establishmentLoading } = useEstablishment();
   const navigate = useNavigate();
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,42 +28,55 @@ export default function ClientHome() {
   const [homeSettings, setHomeSettings] = useState<HomeSettings | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (establishmentLoading) return;
+    void fetchData();
+  }, [establishmentId, establishmentLoading]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       const superadminEmail = import.meta.env.VITE_SUPERADMIN_EMAIL || '';
 
-      // Fetch home settings
-      const { data: settingsData } = await supabase
-        .from('home_settings')
-        .select('hero_image_url, title, subtitle')
-        .limit(1)
-        .maybeSingle();
-
-      if (settingsData) {
-        setHomeSettings(settingsData);
+      // Aguarda resolução da unidade; sem ID (ex.: IP sem slug) mostra estado vazio, não loop
+      if (!establishmentId) {
+        setHomeSettings(null);
+        setBarbers([]);
+        return;
       }
 
-      // Fetch barbers (role = barber, excluir superadmin se configurado)
+      if (establishmentId) {
+        const { data: estData } = await supabase
+          .from('establishments')
+          .select('name, hero_image_url, home_title, home_subtitle')
+          .eq('id', establishmentId)
+          .maybeSingle();
+
+        if (estData) {
+          setHomeSettings({
+            hero_image_url: (estData as any).hero_image_url ?? null,
+            title: ((estData as any).home_title ?? estData.name ?? 'BookNow') as string,
+            subtitle: ((estData as any).home_subtitle ?? null) as string | null,
+          });
+        } else {
+          setHomeSettings(null);
+        }
+      } else {
+        setHomeSettings(null);
+      }
+
       let query = supabase
         .from('profiles')
         .select('id, full_name, avatar_url')
-        .eq('role', 'barber');
-      if (superadminEmail) {
-        query = query.neq('email', superadminEmail);
-      }
-      const { data: barbersData, error } = await query;
+        .in('profile_role', ['BARBER', 'ADMIN_BARBER'] as any);
+      if (superadminEmail) query = query.neq('email', superadminEmail);
+      query = query.eq('establishment_id', establishmentId);
+      const { data: barbersData, error: queryErr } = await query;
 
-      if (error) {
-        console.error('Erro ao carregar barbeiros:', error);
-      } else if (barbersData && barbersData.length > 0) {
-        setBarbers(barbersData);
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error);
+      if (queryErr && import.meta.env.DEV) console.error('Erro ao carregar profissionais:', queryErr);
+      else if (barbersData && barbersData.length > 0) setBarbers(barbersData);
+      else setBarbers([]);
+    } catch (err) {
+      if (import.meta.env.DEV) console.error('ClientHome fetchData:', err);
     } finally {
       setLoading(false);
     }
@@ -73,6 +85,17 @@ export default function ClientHome() {
   const filteredBarbers = barbers.filter((barber) =>
     barber.full_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (establishmentLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Carregando…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -99,7 +122,7 @@ export default function ClientHome() {
               <Scissors className="w-4 h-4 text-primary" />
             </div>
             <span className="text-lg font-semibold text-foreground">
-              {homeSettings?.title || 'BarberPro'}
+              {homeSettings?.title || 'BookNow'}
             </span>
           </button>
           
@@ -127,7 +150,7 @@ export default function ClientHome() {
         
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground">
-            {homeSettings?.title || 'BarberPro'}
+            {homeSettings?.title || 'BookNow'}
           </h1>
           {homeSettings?.subtitle && (
             <p className="text-muted-foreground text-sm mt-1">{homeSettings.subtitle}</p>
@@ -139,7 +162,7 @@ export default function ClientHome() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Buscar barbeiro..."
+            placeholder="Buscar profissional..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-12 h-12 bg-card border-border rounded-xl text-foreground placeholder:text-muted-foreground"
@@ -149,10 +172,10 @@ export default function ClientHome() {
 
       {/* Content */}
       <div className="px-5 pb-8">
-        {/* Barbers Section */}
+        {/* Profissionais */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Nossos Barbeiros</h2>
+            <h2 className="text-lg font-semibold text-foreground">Nossos Profissionais</h2>
           </div>
 
           {loading ? (
@@ -171,7 +194,7 @@ export default function ClientHome() {
           ) : filteredBarbers.length === 0 ? (
             <div className="text-center py-12">
               <Scissors className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">Nenhum barbeiro encontrado</p>
+              <p className="text-muted-foreground">Nenhum profissional encontrado</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">

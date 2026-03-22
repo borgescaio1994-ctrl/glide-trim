@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { toast } from 'sonner';
+import { useToast } from '@/contexts/ToastContext';
 import { ArrowLeft, Clock, Loader2 } from 'lucide-react';
 
 const DAYS_OF_WEEK = [
@@ -31,6 +31,7 @@ interface ScheduleDay {
 
 export default function Schedule() {
   const { profile } = useAuth();
+  const { success, error: showError } = useToast();
   const navigate = useNavigate();
   const [schedules, setSchedules] = useState<ScheduleDay[]>(
     DAYS_OF_WEEK.map((day) => ({
@@ -45,31 +46,15 @@ export default function Schedule() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    console.log('Schedule component re-rendered');
-  });
-
-  useEffect(() => {
-    console.log('Schedule useEffect triggered, profile.id:', profile?.id);
-    if (profile?.id) {
-      fetchSchedules();
-    }
-  }, [profile?.id]);
-
   const fetchSchedules = useCallback(async () => {
-    console.log('fetchSchedules called for barber_id:', profile?.id);
     if (!profile?.id) return;
 
-    const startTime = Date.now();
     const { data, error } = await supabase
       .from('barber_schedules')
       .select('*')
       .eq('barber_id', profile.id);
-    const endTime = Date.now();
-    console.log('Supabase query took:', endTime - startTime, 'ms');
 
     if (data) {
-      console.log('Fetched schedules data:', data);
       const updatedSchedules = DAYS_OF_WEEK.map((day) => {
         const existing = data.find((s) => s.day_of_week === day.value);
         if (existing) {
@@ -93,11 +78,17 @@ export default function Schedule() {
         };
       });
       setSchedules(updatedSchedules);
-    } else if (error) {
+    } else if (error && import.meta.env.DEV) {
       console.error('Error fetching schedules:', error);
     }
     setLoading(false);
   }, [profile?.id]);
+
+  useEffect(() => {
+    if (profile?.id) {
+      void fetchSchedules();
+    }
+  }, [profile?.id, fetchSchedules]);
 
   const handleSave = async () => {
     if (!profile?.id) return;
@@ -130,9 +121,9 @@ export default function Schedule() {
         if (error) throw error;
       }
 
-      toast.success('Horários salvos com sucesso!');
+      success('Horários salvos com sucesso!');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao salvar horários');
+      showError(error instanceof Error ? error.message : 'Erro ao salvar horários');
     } finally {
       setSaving(false);
     }

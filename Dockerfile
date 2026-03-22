@@ -22,8 +22,5 @@ RUN npm run build
 # Install express for static serving
 RUN npm install express
 
-# Copy server file
-COPY server.js .
-
-# Start Express server
+# Start Express server (server.js já veio no COPY . .)
 CMD ["node", "server.js"]

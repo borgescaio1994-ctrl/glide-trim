@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
+import { useToast } from '@/contexts/ToastContext';
 import { Camera, Upload, LogOut, Check, Settings, Calendar, Image, Crown, User, Mail, Phone, AlertCircle, Clock, CheckCircle, Edit, RefreshCw, Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function Profile() {
   const { profile, isAdmin, signOut, user, fetchProfile } = useAuth();
+  const { success, error: showError } = useToast();
   const navigate = useNavigate();
   
   const [uploading, setUploading] = useState(false);
@@ -17,11 +18,14 @@ export default function Profile() {
   const [newPhone, setNewPhone] = useState('');
   const [updatingPhone, setUpdatingPhone] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [savingName, setSavingName] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
-    toast.success('Saiu com sucesso');
+    success('Saiu com sucesso');
   };
 
   const formatPhone = (phone: string | null | undefined) => {
@@ -41,6 +45,35 @@ export default function Profile() {
     }
   }, [user, fetchProfile]);
 
+  useEffect(() => {
+    if (profile?.full_name != null) setNameDraft(profile.full_name);
+  }, [profile?.full_name]);
+
+  const handleSaveName = async () => {
+    if (!user) return;
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      showError('Informe um nome');
+      return;
+    }
+    setSavingName(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ full_name: trimmed })
+        .eq('id', user.id);
+      if (error) throw error;
+      await fetchProfile(user.id);
+      setEditingName(false);
+      success('Nome atualizado!');
+    } catch (e) {
+      console.error(e);
+      showError(e instanceof Error ? e.message : 'Erro ao salvar nome');
+    } finally {
+      setSavingName(false);
+    }
+  };
+
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || !event.target.files[0] || !user) return;
 
@@ -51,16 +84,14 @@ export default function Profile() {
 
     setUploading(true);
     try {
-      console.log('📤 Fazendo upload do avatar:', file.name, 'tamanho:', file.size);
-      
       // Verificar tipo e tamanho do arquivo
       if (!file.type.startsWith('image/')) {
-        toast.error('Apenas arquivos de imagem são permitidos');
+        showError('Apenas arquivos de imagem são permitidos');
         return;
       }
       
       if (file.size > 5 * 1024 * 1024) { // 5MB
-        toast.error('A imagem deve ter no máximo 5MB');
+        showError('A imagem deve ter no máximo 5MB');
         return;
       }
 
@@ -69,31 +100,29 @@ export default function Profile() {
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) {
-        console.error('❌ Erro no upload:', uploadError);
+        if (import.meta.env.DEV) console.error('Avatar upload:', uploadError);
         
         // Tratamento específico para diferentes tipos de erro
         if (uploadError.message.includes('bucket not found')) {
-          toast.error('Bucket de avatares não encontrado. Contate o suporte.');
+          showError('Bucket de avatares não encontrado. Contate o suporte.');
         } else if (uploadError.message.includes('permission denied')) {
-          toast.error('Sem permissão para fazer upload. Verifique as configurações.');
+          showError('Sem permissão para fazer upload. Verifique as configurações.');
         } else if (uploadError.message.includes('file too large')) {
-          toast.error('Arquivo muito grande. Máximo permitido: 5MB.');
+          showError('Arquivo muito grande. Máximo permitido: 5MB.');
         } else if (uploadError.message.includes('invalid mime type')) {
-          toast.error('Tipo de arquivo inválido. Apenas imagens são permitidas.');
+          showError('Tipo de arquivo inválido. Apenas imagens são permitidas.');
         } else {
-          toast.error(`Erro no upload: ${uploadError.message}`);
+          showError(`Erro no upload: ${uploadError.message}`);
         }
         return;
       }
 
-      console.log('✅ Upload concluído com sucesso');
-      
       const { data: { publicUrl } } = await supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
 
       if (!publicUrl) {
-        toast.error('Erro ao obter URL pública da imagem');
+        showError('Erro ao obter URL pública da imagem');
         return;
       }
 
@@ -107,28 +136,28 @@ export default function Profile() {
         
         // Tratamento específico para diferentes tipos de erro
         if (updateError.message.includes('permission denied') || updateError.message.includes('insufficient privilege')) {
-          toast.error('Sem permissão para atualizar o avatar. Verifique as políticas de acesso.');
+          showError('Sem permissão para atualizar o avatar. Verifique as políticas de acesso.');
         } else if (updateError.message.includes('column "avatar_url" does not exist') || updateError.message.includes('column does not exist')) {
-          toast.error('Coluna de avatar não encontrada. Contate o suporte.');
+          showError('Coluna de avatar não encontrada. Contate o suporte.');
         } else if (updateError.message.includes('null value in column "avatar_url" violates not-null constraint')) {
-          toast.error('Erro de validação. Tente fazer upload novamente.');
+          showError('Erro de validação. Tente fazer upload novamente.');
         } else if (updateError.message.includes('duplicate key value violates unique constraint')) {
-          toast.error('Já existe um avatar para este perfil. Tente outra imagem.');
+          showError('Já existe um avatar para este perfil. Tente outra imagem.');
         } else if (updateError.message.includes('timeout')) {
-          toast.error('Tempo esgotado. Tente novamente com uma conexão melhor.');
+          showError('Tempo esgotado. Tente novamente com uma conexão melhor.');
         } else if (updateError.message.includes('connection')) {
-          toast.error('Erro de conexão. Verifique sua internet e tente novamente.');
+          showError('Erro de conexão. Verifique sua internet e tente novamente.');
         } else {
-          toast.error(`Erro ao atualizar avatar: ${updateError.message}`);
+          showError(`Erro ao atualizar avatar: ${updateError.message}`);
         }
         return;
       }
 
       await fetchProfile(user.id);
-      toast.success('Foto atualizada com sucesso!');
+      success('Foto atualizada com sucesso!');
     } catch (error) {
       console.error('❌ Erro geral no upload:', error);
-      toast.error('Ocorreu um erro ao fazer upload da foto. Tente novamente.');
+      showError('Ocorreu um erro ao fazer upload da foto. Tente novamente.');
     } finally {
       setUploading(false);
     }
@@ -139,7 +168,7 @@ export default function Profile() {
     try {
       const digits = newPhone.replace(/\D/g, '');
       if (digits.length !== 11) {
-        toast.error('Telefone inválido');
+        showError('Telefone inválido');
         return;
       }
 
@@ -149,7 +178,7 @@ export default function Profile() {
       navigate('/verify-phone');
     } catch (error) {
       console.error('Erro ao preparar telefone:', error);
-      toast.error('Erro ao salvar telefone');
+      showError('Erro ao salvar telefone');
     } finally {
       setUpdatingPhone(false);
     }
@@ -173,14 +202,14 @@ export default function Profile() {
 
       if (!error) {
         await fetchProfile(user.id);
-        toast.success('Telefone removido com sucesso!');
+        success('Telefone removido com sucesso!');
       } else {
         console.error('Erro ao remover telefone:', error);
-        toast.error('Erro ao remover telefone');
+        showError('Erro ao remover telefone');
       }
     } catch (error) {
       console.error('Erro ao remover telefone:', error);
-      toast.error('Erro ao remover telefone');
+      showError('Erro ao remover telefone');
     } finally {
       setUpdatingPhone(false);
     }
@@ -259,8 +288,50 @@ export default function Profile() {
               </Button>
             </div>
             
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold">{profile?.full_name || 'Carregando...'}</h2>
+            <div className="flex-1 space-y-2">
+              {editingName ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    className="max-w-xs"
+                    placeholder="Seu nome"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleSaveName} disabled={savingName}>
+                      {savingName ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 mr-1" />}
+                      Salvar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingName(false);
+                        setNameDraft(profile?.full_name || '');
+                      }}
+                      disabled={savingName}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-semibold">{profile?.full_name || 'Carregando...'}</h2>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 px-2"
+                    onClick={() => {
+                      setNameDraft(profile?.full_name || '');
+                      setEditingName(true);
+                    }}
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
               <p className="text-muted-foreground">{profile?.email}</p>
               <div className="flex items-center gap-1 mt-1">
                 {isAdmin && (
@@ -271,7 +342,7 @@ export default function Profile() {
                 ) || profile?.role === 'barber' && (
                   <>
                     <Settings className="w-4 h-4 text-blue-500" />
-                    <span className="text-sm text-blue-500">Barbeiro</span>
+                    <span className="text-sm text-blue-500">Profissional</span>
                   </>
                 ) || profile?.role === 'client' && (
                   <>
@@ -397,17 +468,19 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Appointments Button */}
-        <div className="px-5 space-y-3">
-          <Button 
-            variant="outline" 
-            className="w-full justify-start"
-            onClick={() => navigate('/appointments')}
-          >
-            <Calendar className="w-4 h-4 mr-2" />
-            Meus Agendamentos
-          </Button>
-        </div>
+        {/* Appointments Button (hide for SUPER_ADMIN) */}
+        {profile?.profile_role !== 'SUPER_ADMIN' && (
+          <div className="px-5 space-y-3">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start"
+              onClick={() => navigate('/appointments')}
+            >
+              <Calendar className="w-4 h-4 mr-2" />
+              Meus Agendamentos
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
+import { useToast } from '@/contexts/ToastContext';
 import { Plus, Scissors, Clock, DollarSign, Trash2, Edit2, ArrowLeft, X, Loader2 } from 'lucide-react';
 
 interface Service {
@@ -21,6 +21,7 @@ interface Service {
 
 export default function Services() {
   const { profile } = useAuth();
+  const { success, error: showError } = useToast();
   const navigate = useNavigate();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,17 +41,21 @@ export default function Services() {
   const fetchServices = useCallback(async () => {
     if (!profile?.id) return;
 
-    const { data, error } = await supabase
-      .from('services')
-      .select('*')
-      .eq('barber_id', profile.id)
-      .order('created_at', { ascending: false });
+    let query = supabase.from('services').select('*').order('created_at', { ascending: false });
 
-    if (data) {
-      setServices(data);
+    // ADMIN_BARBER: vê e gere todos os serviços da unidade (não só os com barber_id = dono)
+    if (profile.profile_role === 'ADMIN_BARBER' && profile.establishment_id) {
+      query = query.eq('establishment_id', profile.establishment_id);
+    } else {
+      query = query.eq('barber_id', profile.id);
     }
+
+    const { data, error } = await query;
+
+    if (error && import.meta.env.DEV) console.warn('fetchServices:', error);
+    if (data) setServices(data);
     setLoading(false);
-  }, [profile?.id]);
+  }, [profile?.id, profile?.profile_role, profile?.establishment_id]);
 
   useEffect(() => {
     if (profile?.id) {
@@ -86,10 +91,10 @@ export default function Services() {
         image_name: fileName
       }));
 
-      toast.success('Imagem enviada com sucesso!');
+      success('Imagem enviada com sucesso!');
     } catch (error) {
       console.error('Erro no upload:', error);
-      toast.error('Erro ao enviar imagem');
+      showError('Erro ao enviar imagem');
     } finally {
       setUploadingImage(false);
     }
@@ -116,7 +121,7 @@ export default function Services() {
           .eq('id', editingService.id);
 
         if (error) throw error;
-        toast.success('Serviço atualizado!');
+        success('Serviço atualizado!');
       } else {
         const { error } = await supabase
           .from('services')
@@ -131,13 +136,13 @@ export default function Services() {
           });
 
         if (error) throw error;
-        toast.success('Serviço criado!');
+        success('Serviço criado!');
       }
 
       resetForm();
       fetchServices();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao criar serviço');
+      showError(error instanceof Error ? error.message : 'Erro ao criar serviço');
     } finally {
       setSaving(false);
     }
@@ -165,9 +170,9 @@ export default function Services() {
       .eq('id', id);
 
     if (error) {
-      toast.error('Erro ao excluir serviço');
+      showError('Erro ao excluir serviço');
     } else {
-      toast.success('Serviço excluído!');
+      success('Serviço excluído!');
       fetchServices();
     }
   };

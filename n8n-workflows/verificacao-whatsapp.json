@@ -1,5 +1,5 @@
 {
-  "name": "BarberPro - Verificação WhatsApp (código)",
+  "name": "BookNow - Verificação WhatsApp (master → dono | loja → cliente)",
   "nodes": [
     {
       "parameters": {
@@ -17,24 +17,24 @@
     },
     {
       "parameters": {
-        "jsCode": "// Payload da Edge Function: { phone, code, action: 'send_verification' }\nconst body = $input.first().json.body || $input.first().json;\nconst phone = (body.phone || '').replace(/\\D/g, '');\nconst number = phone.startsWith('55') ? phone : '55' + phone;\nconst code = (body.code || '').toString().trim();\n\nconst message = `🔐 *BarberPro*\\n\\nSeu código de verificação é: *${code}*\\n\\nVálido por 10 minutos. Não compartilhe com ninguém.`;\n\nreturn [{ json: { number, message, raw: body } }];"
+        "jsCode": "// Payload: phone, code, route, evolution_instance (Edge send-whatsapp-verification)\n// Base da Evolution SEM $env (n8n 2.x pode bloquear $env no Code → \"access to env vars denied\")\nconst EVOLUTION_BASE_DEFAULT = 'http://72.60.159.183:8080';\nconst item = $input.first().json;\nconst body = item.body && typeof item.body === 'object' ? item.body : item;\nconst phone = String(body.phone || '').replace(/\\D/g, '');\nconst number = phone.startsWith('55') ? phone : (phone ? '55' + phone : '');\nconst code = String(body.code || '').trim();\nconst route = body.route === 'MASTER_TO_OWNER' ? 'MASTER_TO_OWNER' : 'SHOP_TO_CLIENT';\nconst inst = String(body.evolution_instance || 'caio_zap').trim().replace(/[^a-zA-Z0-9_-]/g, '') || 'caio_zap';\nlet base = String(EVOLUTION_BASE_DEFAULT);\nif (base.endsWith('/')) base = base.slice(0, -1);\nconst sendUrl = base + '/message/sendText/' + inst;\nlet message;\nif (route === 'MASTER_TO_OWNER') {\n  message = `🔐 *BookNow*\\n\\nCódigo para verificar o *dono da barbearia*:\\n*${code}*\\n\\nVálido por 10 minutos. Não compartilhe.`;\n} else {\n  message = `🔐 *BookNow*\\n\\nSeu código de verificação:\\n*${code}*\\n\\nVálido por 10 minutos. Não compartilhe.`;\n}\nreturn [{ json: { number, message, route, evolution_instance: inst, sendUrl, raw: body } }];"
       },
       "id": "format-verification",
-      "name": "Montar mensagem",
+      "name": "Montar mensagem e URL Evolution",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 300]
+      "position": [480, 300]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://72.60.159.183:8080/message/sendText/caio_zap",
+        "url": "={{ $json.sendUrl }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $env.EVOLUTION_API_KEY }}"
+              "value": "COLE_AQUI_A_CHAVE_GLOBAL_DA_EVOLUTION"
             }
           ]
         },
@@ -44,16 +44,16 @@
         "options": {}
       },
       "id": "send-whatsapp",
-      "name": "Enviar WhatsApp",
+      "name": "Enviar WhatsApp (Evolution)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 300],
-      "notes": "Evolution API: 72.60.159.183:8080, instância caio_zap"
+      "position": [720, 300],
+      "notes": "URL dinâmica: EVOLUTION_API_BASE + /message/sendText/ + evolution_instance (master ou loja, vindo da Edge Function)."
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"success\": true, \"message\": \"Código enviado\" } }}",
+        "responseBody": "={{ { success: true, message: \"Código enviado\" } }}",
         "options": {
           "responseCode": 200
         }
@@ -62,7 +62,7 @@
       "name": "Responder Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [900, 300]
+      "position": [960, 300]
     }
   ],
   "connections": {
@@ -70,25 +70,25 @@
       "main": [
         [
           {
-            "node": "Montar mensagem",
+            "node": "Montar mensagem e URL Evolution",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Montar mensagem": {
+    "Montar mensagem e URL Evolution": {
       "main": [
         [
           {
-            "node": "Enviar WhatsApp",
+            "node": "Enviar WhatsApp (Evolution)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Enviar WhatsApp": {
+    "Enviar WhatsApp (Evolution)": {
       "main": [
         [
           {

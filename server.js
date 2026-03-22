@@ -45,7 +45,7 @@ app.get("/health", (req, res) => {
 // API routes
 app.get("/api/status", (req, res) => {
   res.json({ 
-    app: "BarberPro", 
+    app: "BookNow", 
     version: "1.0.0",
     status: "running",
     port: port 
@@ -80,7 +80,7 @@ app.use((req, res) => {
 
 // Start server
 app.listen(port, "0.0.0.0", () => {
-  console.log("=== BARBERPRO SERVER STARTED ===");
+  console.log("=== BOOKNOW SERVER STARTED ===");
   console.log("Port:", port);
   console.log("Environment:", process.env.NODE_ENV || "development");
   console.log("Static files:", path.join(__dirname, "dist"));

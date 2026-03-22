@@ -1,4 +1,4 @@
-# Criar perfil de administrador (BarberPro)
+# Criar perfil de administrador (BookNow)
 
 1. Acesse o Supabase Dashboard → Authentication → Users → Add user.
 2. Crie o usuário com o email que será o admin.

@@ -1,86 +1,57 @@
-import { useEffect } from "react";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
-import Layout from "@/components/Layout";
-import { Suspense, lazy } from "react";
-import { Loader2 } from "lucide-react";
-import { App as CapacitorApp } from "@capacitor/app";
-import { Capacitor } from "@capacitor/core";
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from '@/hooks/useAuth';
+import { ToastProvider } from '@/contexts/ToastContext';
+import PhoneVerificationGuard from '@/components/PhoneVerificationGuard';
+import CustomerTenantGuard from '@/components/CustomerTenantGuard';
+import Layout from '@/components/Layout';
+import Index from '@/pages/Index';
+import Auth from '@/pages/Auth';
+import Profile from '@/pages/Profile';
+import Services from '@/pages/Services';
+import Schedule from '@/pages/Schedule';
+import Appointments from '@/pages/Appointments';
+import Finances from '@/pages/Finances';
+import BookAppointment from '@/pages/BookAppointment';
+import BarberProfile from '@/pages/BarberProfile';
+import Gallery from '@/pages/Gallery';
+import AdminDashboard from '@/pages/AdminDashboard';
+import SuperAdmin from '@/pages/SuperAdmin';
+import VerifyPhone from '@/pages/VerifyPhone';
+import AssinaturaPendente from '@/pages/AssinaturaPendente';
+import BarberPanel from '@/pages/BarberPanel';
+import NotFound from '@/pages/NotFound';
 
-// Lazy loading components para melhor performance
-const Index = lazy(() => import("./pages/Index"));
-const Auth = lazy(() => import("./pages/Auth"));
-const Profile = lazy(() => import("./pages/Profile"));
-const Services = lazy(() => import("./pages/Services"));
-const Schedule = lazy(() => import("./pages/Schedule"));
-const Appointments = lazy(() => import("./pages/Appointments"));
-const Finances = lazy(() => import("./pages/Finances"));
-const BookAppointment = lazy(() => import("./pages/BookAppointment"));
-const BarberProfile = lazy(() => import("./pages/BarberProfile"));
-const Gallery = lazy(() => import("./pages/Gallery"));
-const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
-const VerifyPhone = lazy(() => import("./pages/VerifyPhone"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-
-// Componente de loading
-const PageLoader = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <Loader2 className="animate-spin text-primary" size={32} />
-  </div>
-);
-
-const queryClient = new QueryClient();
-
-const App = () => {
-  useEffect(() => {
-    // Handle Android back button
-    if (Capacitor.isNativePlatform()) {
-      CapacitorApp.addListener('backButton', ({ canGoBack }) => {
-        if (canGoBack) {
-          window.history.back();
-        }
-        // Do nothing if cannot go back, preventing app exit
-      });
-    }
-  }, []);
-
+export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter future={{ v7_relativeSplatPath: true }}>
+    <AuthProvider>
+      <ToastProvider>
+        <BrowserRouter>
+          <PhoneVerificationGuard>
+            <CustomerTenantGuard />
             <Layout>
-              <Suspense fallback={<PageLoader />}>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/auth" element={<Auth />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/services" element={<Services />} />
-                  <Route path="/schedule" element={<Schedule />} />
-                  <Route path="/appointments" element={<Appointments />} />
-                  <Route path="/finances" element={<Finances />} />
-                  <Route path="/book/:barberId/:serviceId" element={<BookAppointment />} />
-                  <Route path="/barber/:barberId" element={<BarberProfile />} />
-                  <Route path="/gallery" element={<Gallery />} />
-                  <Route path="/admin" element={<AdminDashboard />} />
-                  <Route path="/verify-phone" element={<VerifyPhone />} />
-                  {/* Removido /verify-otp para evitar conflito - usando apenas /verify-phone */}
-                  <Route path="/auth/callback" element={<Index />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
+              <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/services" element={<Services />} />
+              <Route path="/schedule" element={<Schedule />} />
+              <Route path="/appointments" element={<Appointments />} />
+              <Route path="/finances" element={<Finances />} />
+              <Route path="/book/:barberId/:serviceId" element={<BookAppointment />} />
+              <Route path="/barber" element={<BarberPanel />} />
+              <Route path="/barber/:barberId" element={<BarberProfile />} />
+              <Route path="/gallery" element={<Gallery />} />
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/super-admin" element={<SuperAdmin />} />
+              <Route path="/assinatura-pendente" element={<AssinaturaPendente />} />
+              <Route path="/verify-phone" element={<VerifyPhone />} />
+              <Route path="/auth/callback" element={<Index />} />
+              <Route path="*" element={<NotFound />} />
+              </Routes>
             </Layout>
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+          </PhoneVerificationGuard>
+        </BrowserRouter>
+      </ToastProvider>
+    </AuthProvider>
   );
-};
-
-export default App;
+}

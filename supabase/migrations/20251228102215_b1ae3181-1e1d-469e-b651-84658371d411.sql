@@ -2,7 +2,7 @@
 CREATE TABLE public.home_settings (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   hero_image_url text,
-  title text NOT NULL DEFAULT 'BarberPro',
+  title text NOT NULL DEFAULT 'BookNow',
   subtitle text DEFAULT 'Agende seu horário com os melhores barbeiros',
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now()
@@ -24,7 +24,7 @@ FOR ALL
 USING (has_role(auth.uid(), 'admin'::app_role));
 
 -- Insert default settings
-INSERT INTO public.home_settings (title, subtitle) VALUES ('BarberPro', 'Agende seu horário com os melhores barbeiros');
+INSERT INTO public.home_settings (title, subtitle) VALUES ('BookNow', 'Agende seu horário com os melhores profissionais');
 
 -- Create trigger for automatic timestamp updates
 CREATE TRIGGER update_home_settings_updated_at

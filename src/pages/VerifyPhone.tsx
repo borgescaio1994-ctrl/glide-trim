@@ -2,15 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { validateAuthCode } from '@/lib/authUtils';
-import { toast } from 'sonner';
+import { setDeferred } from '@/lib/verificationStorage';
+import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, ShieldCheck, Loader2, MessageCircle } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
+import { useEstablishment } from '@/hooks/useEstablishment';
 
 export default function VerifyPhone() {
-  const { user, fetchProfile } = useAuth();
+  const { user, profile, fetchProfile, fetchProfileImmediate } = useAuth();
+  const { establishmentId: establishmentIdFromDomain } = useEstablishment();
+  const { success: toastSuccess, error: toastError } = useToast();
   const navigate = useNavigate();
 
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -29,7 +33,7 @@ export default function VerifyPhone() {
 
   const handleSendCode = async () => {
     if (!phoneNumber || phoneNumber.length < 10) {
-      toast.error('Digite um número válido');
+      toastError('Digite um número válido');
       return;
     }
 
@@ -49,36 +53,68 @@ export default function VerifyPhone() {
       });
       if (insertErr) throw insertErr;
 
+      const route =
+        profile?.profile_role === 'ADMIN_BARBER' ? 'MASTER_TO_OWNER' : 'SHOP_TO_CLIENT';
+      let barberId: string | undefined;
+      let pendingEstablishmentId: string | undefined;
+      try {
+        const raw = typeof window !== 'undefined' ? sessionStorage.getItem('pendingBooking') : null;
+        if (raw) {
+          const p = JSON.parse(raw);
+          barberId = p.barber_id ?? p.barberId;
+          pendingEstablishmentId = p.establishment_id;
+        }
+      } catch {
+        /* ignore */
+      }
+
+      // Cliente não tem establishment_id no perfil: usa agendamento pendente ou domínio (slug da loja)
+      const establishmentIdForRoute =
+        profile?.establishment_id ??
+        pendingEstablishmentId ??
+        establishmentIdFromDomain ??
+        undefined;
+
       try {
         await supabase.functions.invoke('send-whatsapp-verification', {
-          body: { phone: fullPhone, code },
+          body: {
+            phone: fullPhone,
+            code,
+            route,
+            establishment_id: establishmentIdForRoute,
+            barber_id: barberId,
+          },
         });
       } catch {
         // fallback: código já salvo no banco
       }
 
       setCodeSent(true);
-      toast.success('Código enviado para seu WhatsApp!');
-    } catch (error) {
-      console.error('Erro ao enviar código:', error);
-      toast.error('Erro ao enviar código. Tente novamente.');
+      toastSuccess('Código enviado para seu WhatsApp!');
+    } catch {
+      toastError('Erro ao enviar código. Tente novamente.');
     } finally {
       setVerifyingPhone(false);
     }
   };
 
+  const handleVerifyLater = () => {
+    setDeferred();
+    navigate('/profile', { replace: true });
+  };
+
   const handleVerifyCode = async () => {
     if (!verificationCode.trim() || verificationCode.trim().length !== 6) {
-      toast.error('Digite o código de 6 dígitos recebido');
+      toastError('Digite o código de 6 dígitos recebido');
       return;
     }
     if (!user?.id) {
-      toast.error('Sessão inválida. Faça login novamente.');
+      toastError('Sessão inválida. Faça login novamente.');
       return;
     }
     const pendingPhone = localStorage.getItem('pending_phone');
     if (!pendingPhone) {
-      toast.error('Telefone não encontrado. Envie o código novamente.');
+      toastError('Telefone não encontrado. Envie o código novamente.');
       return;
     }
 
@@ -90,15 +126,66 @@ export default function VerifyPhone() {
       if (success) {
         localStorage.removeItem('pending_phone');
         setVerifyingCode(false);
-        toast.success('WhatsApp verificado com sucesso!');
-        navigate('/profile', { replace: true });
-        fetchProfile(user.id).catch(() => {});
+
+        await fetchProfileImmediate(user.id, pendingPhone);
+        await fetchProfile(user.id);
+
+        // Se quem verificou é ADMIN_BARBER: ativa onboarding da unidade e define sender oficial
+        if (profile?.profile_role === 'ADMIN_BARBER' && profile?.establishment_id) {
+          await supabase
+            .from('establishments')
+            .update({
+              onboarding_status: 'ACTIVE',
+              whatsapp_sender_phone: pendingPhone,
+              owner_phone_verified_at: new Date().toISOString(),
+            } as any)
+            .eq('id', profile.establishment_id);
+        }
+
+        const pendingBookingRaw = typeof window !== 'undefined' ? sessionStorage.getItem('pendingBooking') : null;
+        if (pendingBookingRaw) {
+          try {
+            const { barberId, serviceId, selectedDate, selectedTime, duration_minutes } = JSON.parse(pendingBookingRaw);
+            const slotStart = parseInt(selectedTime.split(':')[0], 10) * 60 + parseInt(selectedTime.split(':')[1], 10);
+            const slotEnd = slotStart + duration_minutes;
+            const endTime = `${Math.floor(slotEnd / 60).toString().padStart(2, '0')}:${(slotEnd % 60).toString().padStart(2, '0')}`;
+            const { error } = await supabase.from('appointments').insert({
+              client_id: user.id,
+              barber_id: barberId,
+              service_id: serviceId,
+              appointment_date: selectedDate,
+              start_time: selectedTime,
+              end_time: endTime,
+              status: 'scheduled',
+              phone_number: pendingPhone,
+            });
+            sessionStorage.removeItem('pendingBooking');
+            sessionStorage.removeItem('returnToBooking');
+            if (error) throw error;
+            toastSuccess('WhatsApp verificado e agendamento concluído com sucesso!');
+            window.history.replaceState(null, '', '/appointments');
+            window.location.href = '/appointments';
+          } catch {
+            sessionStorage.removeItem('pendingBooking');
+            sessionStorage.removeItem('returnToBooking');
+            toastSuccess('WhatsApp verificado com sucesso!');
+            toastError('Agendamento não concluído (horário pode estar ocupado). Tente agendar novamente.');
+            window.history.replaceState(null, '', '/appointments');
+            window.location.href = '/appointments';
+          }
+          return;
+        }
+
+        toastSuccess('WhatsApp verificado com sucesso!');
+        const returnTo = typeof window !== 'undefined' ? sessionStorage.getItem('returnToBooking') : null;
+        const targetPath = returnTo || '/profile';
+        if (returnTo) sessionStorage.removeItem('returnToBooking');
+        navigate(targetPath, { replace: true });
         return;
       }
-      toast.error('Código incorreto ou expirado');
-    } catch (error) {
-      console.error('Erro na verificação:', error);
-      toast.error('Erro na verificação. Tente novamente.');
+      toastError('Código incorreto ou expirado');
+    } catch {
+      toastError('Erro na verificação. Tente novamente.');
     } finally {
       setVerifyingCode(false);
     }
@@ -195,7 +282,7 @@ export default function VerifyPhone() {
                 </Button>
                 <Button
                   variant="ghost"
-                  onClick={() => navigate('/profile')}
+                  onClick={handleVerifyLater}
                   className="w-full h-11 text-muted-foreground hover:text-foreground"
                 >
                   Verificar Depois
@@ -208,7 +295,7 @@ export default function VerifyPhone() {
         <div className="text-center">
           <Button
             variant="ghost"
-            onClick={() => navigate('/profile')}
+            onClick={handleVerifyLater}
             className="text-muted-foreground hover:text-foreground"
           >
             Verificar Depois

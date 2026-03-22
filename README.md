@@ -1,6 +1,6 @@
-# BarberPro
+# BookNow
 
-Sistema profissional para agendamento de barbeiros. PWA com React, Vite, Tailwind e Supabase.
+Sistema profissional para agendamento online. PWA com React, Vite, Tailwind e Supabase.
 
 ## Rodar localmente
 

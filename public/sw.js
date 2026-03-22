@@ -1,71 +1,58 @@
-// Service Worker para PWA
-const CACHE_NAME = 'barberpro-v1';
-const urlsToCache = [
-  '/',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
-  '/manifest.webmanifest',
-  '/icon-192.svg',
-  '/icon-512.svg'
-];
+/**
+ * Service Worker — estratégia segura para SPA (Vite):
+ * - Nunca servir index.html antigo do cache (evita chunk JS 404 e tela carregando para sempre).
+ * - Navegação: sempre rede primeiro.
+ * - Precache só de assets estáveis (manifest, logo).
+ */
+const CACHE_STATIC = 'booknow-v3-static';
+const PRECACHE_URLS = ['/manifest.webmanifest', '/brand-logo.png'];
 
-// Instalação do Service Worker
-self.addEventListener('install', event => {
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
+    caches
+      .open(CACHE_STATIC)
+      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .catch(() => {})
   );
 });
 
-// Ativação do Service Worker
-self.addEventListener('activate', event => {
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.map((key) => (key !== CACHE_STATIC ? caches.delete(key) : Promise.resolve())))
+      )
+      .then(() => self.clients.claim())
   );
 });
 
-// Interceptação de requisições
-self.addEventListener('fetch', event => {
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  // Navegação / documento: sempre rede (index.html deve bater com /assets/* atuais)
+  if (req.mode === 'navigate' || req.destination === 'document') {
+    event.respondWith(
+      fetch(req).catch(() => new Response('Sem conexão. Tente de novo.', { status: 503, statusText: 'Offline' }))
+    );
+    return;
+  }
+
+  // Demais recursos: rede primeiro; opcionalmente guarda cópia para uso offline leve
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
+    fetch(req)
+      .then((res) => {
+        if (res && res.status === 200 && res.type === 'basic') {
+          const copy = res.clone();
+          caches.open(CACHE_STATIC).then((cache) => cache.put(req, copy)).catch(() => {});
         }
-
-        // Clone da requisição
-        const fetchRequest = event.request.clone();
-
-        return fetch(fetchRequest).then(response => {
-          // Verifica se resposta é válida
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
-
-          // Clone da resposta
-          const responseToCache = response.clone();
-
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(event.request, responseToCache);
-            });
-
-          return response;
-        }).catch(() => {
-          // Offline fallback
-          if (event.request.destination === 'document') {
-            return caches.match('/');
-          }
-        });
+        return res;
       })
+      .catch(() => caches.match(req))
   );
 });
