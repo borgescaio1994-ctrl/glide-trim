@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/hooks/useAuth';
 import { ToastProvider } from '@/contexts/ToastContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import PhoneVerificationGuard from '@/components/PhoneVerificationGuard';
 import CustomerTenantGuard from '@/components/CustomerTenantGuard';
 import Layout from '@/components/Layout';
@@ -20,12 +21,22 @@ import VerifyPhone from '@/pages/VerifyPhone';
 import AssinaturaPendente from '@/pages/AssinaturaPendente';
 import BarberPanel from '@/pages/BarberPanel';
 import NotFound from '@/pages/NotFound';
+import ScrollAndReloadSync from '@/components/ScrollAndReloadSync';
+import AuthBootstrapGate from '@/components/AuthBootstrapGate';
 
 export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <BrowserRouter>
+        <AuthBootstrapGate>
+        <BrowserRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
+          <ScrollAndReloadSync />
+          <ThemeProvider>
           <PhoneVerificationGuard>
             <CustomerTenantGuard />
             <Layout>
@@ -50,7 +61,9 @@ export default function App() {
               </Routes>
             </Layout>
           </PhoneVerificationGuard>
+          </ThemeProvider>
         </BrowserRouter>
+        </AuthBootstrapGate>
       </ToastProvider>
     </AuthProvider>
   );

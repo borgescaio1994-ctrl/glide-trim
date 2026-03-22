@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { fetchAppointmentsForProfile } from '@/api/appointmentsList';
+import { queryKeys } from '@/lib/queryKeys';
 import { format, parseISO, isPast, isToday, isFuture } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, Calendar, Clock, DollarSign, User, X, Scissors, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, DollarSign, X, Scissors, CheckCircle } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 
 interface Appointment {
@@ -30,89 +33,58 @@ export default function Appointments() {
   const { profile, loading: authLoading } = useAuth();
   const { success, error: showError } = useToast();
   const navigate = useNavigate();
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'upcoming' | 'past'>('upcoming');
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!profile?.id) {
-      setLoading(false);
-      return;
-    }
-    fetchAppointments();
-  }, [profile?.id, authLoading]);
+  const appointmentsQuery = useQuery({
+    queryKey: queryKeys.appointmentsList(profile?.id),
+    queryFn: () => fetchAppointmentsForProfile(profile!),
+    enabled: !!profile?.id && !authLoading,
+  });
 
-  const fetchAppointments = async () => {
-    setLoading(true);
-    try {
-    try {
-      await supabase.rpc('auto_cancel_past_appointments');
-    } catch {
-      try {
-        await supabase
-          .from('appointments')
-          .update({ status: 'cancelled' })
-          .eq('status', 'scheduled')
-          .lt('appointment_date', new Date().toISOString().split('T')[0]);
-      } catch {
-        /* RPC pode não existir; fallback opcional */
-      }
-    }
+  const appointments = (appointmentsQuery.data ?? []) as Appointment[];
+  const loading = appointmentsQuery.isPending;
 
-    const isBarberView =
-      profile?.profile_role === 'BARBER' || profile?.profile_role === 'ADMIN_BARBER';
-    const column = isBarberView ? 'barber_id' : 'client_id';
-    const { data, error } = await supabase
-      .from('appointments')
-      .select(`
-        *,
-        barber:profiles!appointments_barber_id_fkey(full_name),
-        client:profiles!appointments_client_id_fkey(full_name),
-        service:services(name, price, duration_minutes)
-      `)
-      .eq(column, profile.id)
-      .order('appointment_date', { ascending: false })
-      .order('start_time', { ascending: false });
+  const invalidateList = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.appointmentsList(profile?.id) });
 
-    if (data) {
-      setAppointments(data as any);
-    }
-    } catch (e) {
-      if (import.meta.env.DEV) console.error('Appointments fetchAppointments:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const cancelAppointment = async (id: string) => {
-    if (!confirm('Tem certeza que deseja cancelar este agendamento?')) return;
-
-    const { error } = await supabase
-      .from('appointments')
-      .update({ status: 'cancelled' })
-      .eq('id', id);
-
-    if (error) {
-      showError('Erro ao cancelar agendamento');
-    } else {
+  const cancelMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'cancelled' })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
       success('Agendamento cancelado');
-      fetchAppointments();
-    }
+      void invalidateList();
+    },
+    onError: () => showError('Erro ao cancelar agendamento'),
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      success('Agendamento concluído');
+      void invalidateList();
+    },
+    onError: () => showError('Erro ao concluir agendamento'),
+  });
+
+  const cancelAppointment = (id: string) => {
+    if (!confirm('Tem certeza que deseja cancelar este agendamento?')) return;
+    cancelMutation.mutate(id);
   };
 
-  const completeAppointment = async (id: string) => {
-    const { error } = await supabase
-      .from('appointments')
-      .update({ status: 'completed', completed_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) {
-      showError('Erro ao concluir agendamento');
-    } else {
-      success('Agendamento concluído');
-      fetchAppointments();
-    }
+  const completeAppointment = (id: string) => {
+    completeMutation.mutate(id);
   };
 
   const formatPrice = (price: number) => {
@@ -167,7 +139,9 @@ export default function Appointments() {
           >
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <h1 className="text-2xl font-bold text-foreground">Agendamentos</h1>
+          <div className="flex items-center gap-3 min-w-0">
+            <h1 className="text-2xl font-bold text-foreground">Agendamentos</h1>
+          </div>
         </div>
 
         {/* Filter Tabs */}

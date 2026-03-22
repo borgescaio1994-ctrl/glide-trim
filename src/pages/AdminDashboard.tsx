@@ -13,13 +13,11 @@ import {
   Trash2,
   PieChart,
   BarChart3,
-  Crown,
   AlertCircle,
   Settings,
   UserPlus,
   X,
-  FileText,
-  Shield
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,15 +93,15 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (authLoading || loading || !user) return;
     if (isSuperAdmin) {
-      navigate('/super-admin');
+      navigate('/super-admin', { replace: true });
       return;
     }
     if (!isAdminBarber && profile?.profile_role === 'BARBER') {
-      navigate('/');
+      navigate('/', { replace: true });
       return;
     }
     if (!isAdminBarber) {
-      navigate('/');
+      navigate('/', { replace: true });
       return;
     }
   }, [authLoading, loading, user, isSuperAdmin, isAdminBarber, profile?.profile_role, navigate]);
@@ -534,15 +532,9 @@ export default function AdminDashboard() {
           </button>
           <div className="flex items-center gap-2">
             {isSuperAdmin ? (
-              <>
-                <Shield className="w-6 h-6 text-primary" />
-                <h1 className="text-2xl font-bold text-foreground">Painel SuperAdmin</h1>
-              </>
+              <h1 className="text-2xl font-bold text-foreground">Painel SuperAdmin</h1>
             ) : (
-              <>
-                <Crown className="w-6 h-6 text-primary" />
-                <h1 className="text-2xl font-bold text-foreground">Painel Admin</h1>
-              </>
+              <h1 className="text-2xl font-bold text-foreground">Painel Admin</h1>
             )}
           </div>
           <Button

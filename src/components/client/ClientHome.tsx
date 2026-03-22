@@ -1,86 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useEstablishment } from '@/hooks/useEstablishment';
+import { fetchClientHomePage } from '@/api/clientHome';
+import { queryKeys } from '@/lib/queryKeys';
 import { Search, Scissors, LogIn } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-interface Barber {
-  id: string;
-  full_name: string;
-  avatar_url: string | null;
-}
-
-interface HomeSettings {
-  hero_image_url: string | null;
-  title: string;
-  subtitle: string | null;
-}
-
 export default function ClientHome() {
   const { user, profile } = useAuth();
   const { establishmentId, loading: establishmentLoading } = useEstablishment();
   const navigate = useNavigate();
-  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [homeSettings, setHomeSettings] = useState<HomeSettings | null>(null);
 
-  useEffect(() => {
-    if (establishmentLoading) return;
-    void fetchData();
-  }, [establishmentId, establishmentLoading]);
+  const clientHomeQuery = useQuery({
+    queryKey: queryKeys.clientHome(establishmentId),
+    queryFn: () => fetchClientHomePage(establishmentId!),
+    enabled: !!establishmentId && !establishmentLoading,
+  });
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const superadminEmail = import.meta.env.VITE_SUPERADMIN_EMAIL || '';
-
-      // Aguarda resolução da unidade; sem ID (ex.: IP sem slug) mostra estado vazio, não loop
-      if (!establishmentId) {
-        setHomeSettings(null);
-        setBarbers([]);
-        return;
-      }
-
-      if (establishmentId) {
-        const { data: estData } = await supabase
-          .from('establishments')
-          .select('name, hero_image_url, home_title, home_subtitle')
-          .eq('id', establishmentId)
-          .maybeSingle();
-
-        if (estData) {
-          setHomeSettings({
-            hero_image_url: (estData as any).hero_image_url ?? null,
-            title: ((estData as any).home_title ?? estData.name ?? 'BookNow') as string,
-            subtitle: ((estData as any).home_subtitle ?? null) as string | null,
-          });
-        } else {
-          setHomeSettings(null);
-        }
-      } else {
-        setHomeSettings(null);
-      }
-
-      let query = supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url')
-        .in('profile_role', ['BARBER', 'ADMIN_BARBER'] as any);
-      if (superadminEmail) query = query.neq('email', superadminEmail);
-      query = query.eq('establishment_id', establishmentId);
-      const { data: barbersData, error: queryErr } = await query;
-
-      if (queryErr && import.meta.env.DEV) console.error('Erro ao carregar profissionais:', queryErr);
-      else if (barbersData && barbersData.length > 0) setBarbers(barbersData);
-      else setBarbers([]);
-    } catch (err) {
-      if (import.meta.env.DEV) console.error('ClientHome fetchData:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const homeSettings = clientHomeQuery.data?.homeSettings ?? null;
+  const barbers = clientHomeQuery.data?.barbers ?? [];
+  const loading = establishmentLoading || (!!establishmentId && clientHomeQuery.isPending);
 
   const filteredBarbers = barbers.filter((barber) =>
     barber.full_name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -116,11 +58,8 @@ export default function ClientHome() {
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            className="flex items-center hover:opacity-80 transition-opacity"
           >
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Scissors className="w-4 h-4 text-primary" />
-            </div>
             <span className="text-lg font-semibold text-foreground">
               {homeSettings?.title || 'BookNow'}
             </span>

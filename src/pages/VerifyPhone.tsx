@@ -163,15 +163,13 @@ export default function VerifyPhone() {
             sessionStorage.removeItem('returnToBooking');
             if (error) throw error;
             toastSuccess('WhatsApp verificado e agendamento concluído com sucesso!');
-            window.history.replaceState(null, '', '/appointments');
-            window.location.href = '/appointments';
+            navigate('/appointments', { replace: true });
           } catch {
             sessionStorage.removeItem('pendingBooking');
             sessionStorage.removeItem('returnToBooking');
             toastSuccess('WhatsApp verificado com sucesso!');
             toastError('Agendamento não concluído (horário pode estar ocupado). Tente agendar novamente.');
-            window.history.replaceState(null, '', '/appointments');
-            window.location.href = '/appointments';
+            navigate('/appointments', { replace: true });
           }
           return;
         }

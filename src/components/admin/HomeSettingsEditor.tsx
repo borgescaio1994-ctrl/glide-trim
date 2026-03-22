@@ -4,23 +4,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/contexts/ToastContext';
-import { Upload, Save, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Upload, Save, Image as ImageIcon, Loader2, Palette } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useEstablishment } from '@/hooks/useEstablishment';
+import { dispatchUiThemeUpdated, type UiThemeId } from '@/contexts/ThemeContext';
 
 interface HomeSettings {
   id: string;
   hero_image_url: string | null;
   title: string;
   subtitle: string | null;
+  ui_theme: UiThemeId;
 }
 
 export default function HomeSettingsEditor() {
   const { success, error: showError } = useToast();
   const { profile } = useAuth();
+  const { refetch: refetchEstablishment } = useEstablishment();
   const [settings, setSettings] = useState<HomeSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [themeSaving, setThemeSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -38,18 +43,22 @@ export default function HomeSettingsEditor() {
 
       const { data, error } = await supabase
         .from('establishments')
-        .select('id, hero_image_url, home_title, home_subtitle, name')
+        .select('id, hero_image_url, home_title, home_subtitle, name, ui_theme')
         .eq('id', establishmentId)
         .maybeSingle();
 
       if (error) throw error;
 
       if (data) {
+        const rawTheme = (data as { ui_theme?: string }).ui_theme;
+        const ui_theme: UiThemeId =
+          rawTheme === 'light_gold' ? 'light_gold' : 'dark_gold';
         setSettings({
           id: data.id,
           hero_image_url: (data as any).hero_image_url ?? null,
           title: ((data as any).home_title ?? data.name ?? 'BookNow') as string,
           subtitle: ((data as any).home_subtitle ?? null) as string | null,
+          ui_theme,
         });
       } else {
         setSettings(null);
@@ -109,10 +118,13 @@ export default function HomeSettingsEditor() {
           hero_image_url: settings.hero_image_url,
           home_title: settings.title,
           home_subtitle: settings.subtitle,
+          ui_theme: settings.ui_theme,
         } as any)
         .eq('id', settings.id);
 
       if (error) throw error;
+      dispatchUiThemeUpdated(settings.ui_theme);
+      void refetchEstablishment();
       success('Configurações salvas!');
     } catch (error: any) {
       console.error('Error saving:', error);
@@ -126,6 +138,37 @@ export default function HomeSettingsEditor() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleThemeChange = async (t: UiThemeId) => {
+    if (!settings || t === settings.ui_theme || themeSaving) return;
+    setThemeSaving(true);
+    try {
+      const { error } = await supabase
+        .from('establishments')
+        .update({ ui_theme: t } as any)
+        .eq('id', settings.id);
+
+      if (error) throw error;
+      setSettings((prev) => (prev ? { ...prev, ui_theme: t } : null));
+      dispatchUiThemeUpdated(t);
+      void refetchEstablishment();
+      success('Tema do app atualizado!');
+    } catch (error: any) {
+      console.error('Error saving theme:', error);
+      const msg = String(error?.message || error || '');
+      if (msg.includes('permission denied') || msg.includes('42501') || msg.includes('policy')) {
+        showError(
+          'Sem permissão para salvar. Confirme: assinatura ativa, conta como dono (ADMIN_BARBER) e unidade vinculada.'
+        );
+      } else if (msg.includes('ui_theme') || msg.includes('column')) {
+        showError('Atualize o banco (migração ui_theme) e tente de novo.');
+      } else {
+        showError(msg || 'Erro ao salvar o tema');
+      }
+    } finally {
+      setThemeSaving(false);
     }
   };
 
@@ -157,6 +200,59 @@ export default function HomeSettingsEditor() {
   }
 
   return (
+    <div className="space-y-6">
+    <div className="bg-card rounded-2xl p-6 border border-border/50 space-y-4">
+      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+        <Palette className="w-5 h-5 text-primary" />
+        Templates do app
+      </h3>
+      <p className="text-sm text-muted-foreground">
+        Escolha o visual para toda a loja (clientes e painel). Preto e dourado é o padrão; branco e dourado deixa o fundo claro mantendo o dourado nos destaques.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <button
+          type="button"
+          disabled={themeSaving}
+          onClick={() => void handleThemeChange('dark_gold')}
+          className={`rounded-xl border-2 p-4 text-left transition-all ${
+            settings.ui_theme === 'dark_gold'
+              ? 'border-primary ring-2 ring-primary/30 bg-muted/40'
+              : 'border-border hover:border-primary/50 bg-muted/20'
+          }`}
+        >
+          <div className="flex h-14 items-center gap-2 rounded-lg bg-[hsl(0_0%_7%)] px-3 mb-3">
+            <span className="h-3 w-3 rounded-full bg-[hsl(38_92%_50%)]" />
+            <span className="text-xs text-[hsl(0_0%_85%)]">Preto &amp; dourado</span>
+          </div>
+          <span className="font-medium text-foreground">Clássico escuro</span>
+          <p className="text-xs text-muted-foreground mt-1">Fundo escuro, texto claro, detalhes em dourado.</p>
+        </button>
+        <button
+          type="button"
+          disabled={themeSaving}
+          onClick={() => void handleThemeChange('light_gold')}
+          className={`rounded-xl border-2 p-4 text-left transition-all ${
+            settings.ui_theme === 'light_gold'
+              ? 'border-primary ring-2 ring-primary/30 bg-muted/40'
+              : 'border-border hover:border-primary/50 bg-muted/20'
+          }`}
+        >
+          <div className="flex h-14 items-center gap-2 rounded-lg bg-[hsl(45_30%_97%)] border border-[hsl(40_15%_88%)] px-3 mb-3">
+            <span className="h-3 w-3 rounded-full bg-[hsl(38_88%_44%)]" />
+            <span className="text-xs text-[hsl(0_0%_20%)]">Branco &amp; dourado</span>
+          </div>
+          <span className="font-medium text-foreground">Claro elegante</span>
+          <p className="text-xs text-muted-foreground mt-1">Fundo claro, texto escuro, dourado nos botões e destaques.</p>
+        </button>
+      </div>
+      {themeSaving && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Aplicando tema…
+        </div>
+      )}
+    </div>
+
     <div className="bg-card rounded-2xl p-6 border border-border/50 space-y-4">
       <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
         <ImageIcon className="w-5 h-5 text-primary" />
@@ -233,6 +329,7 @@ export default function HomeSettingsEditor() {
         )}
         Salvar Alterações
       </Button>
+    </div>
     </div>
   );
 }

@@ -1,32 +1,32 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { fetchServicesForProfile, type ServiceRow } from '@/api/servicesList';
+import { queryKeys } from '@/lib/queryKeys';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/contexts/ToastContext';
 import { Plus, Scissors, Clock, DollarSign, Trash2, Edit2, ArrowLeft, X, Loader2 } from 'lucide-react';
 
-interface Service {
-  id: string;
-  name: string;
-  description: string | null;
-  duration_minutes: number;
-  price: number;
-  is_active: boolean;
-  image_url?: string | null;
-  image_name?: string | null;
-}
-
 export default function Services() {
   const { profile } = useAuth();
   const { success, error: showError } = useToast();
   const navigate = useNavigate();
-  const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  const servicesQuery = useQuery({
+    queryKey: queryKeys.services(profile?.id, profile?.profile_role, profile?.establishment_id ?? null),
+    queryFn: () => fetchServicesForProfile(profile!),
+    enabled: !!profile?.id,
+  });
+
+  const services = servicesQuery.data ?? [];
+  const loading = servicesQuery.isPending;
   const [showForm, setShowForm] = useState(false);
-  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [editingService, setEditingService] = useState<ServiceRow | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -38,30 +38,10 @@ export default function Services() {
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  const fetchServices = useCallback(async () => {
-    if (!profile?.id) return;
-
-    let query = supabase.from('services').select('*').order('created_at', { ascending: false });
-
-    // ADMIN_BARBER: vê e gere todos os serviços da unidade (não só os com barber_id = dono)
-    if (profile.profile_role === 'ADMIN_BARBER' && profile.establishment_id) {
-      query = query.eq('establishment_id', profile.establishment_id);
-    } else {
-      query = query.eq('barber_id', profile.id);
-    }
-
-    const { data, error } = await query;
-
-    if (error && import.meta.env.DEV) console.warn('fetchServices:', error);
-    if (data) setServices(data);
-    setLoading(false);
-  }, [profile?.id, profile?.profile_role, profile?.establishment_id]);
-
-  useEffect(() => {
-    if (profile?.id) {
-      fetchServices();
-    }
-  }, [profile?.id, fetchServices]);
+  const invalidateServices = () =>
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.services(profile?.id, profile?.profile_role, profile?.establishment_id ?? null),
+    });
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -140,7 +120,7 @@ export default function Services() {
       }
 
       resetForm();
-      fetchServices();
+      void invalidateServices();
     } catch (error) {
       showError(error instanceof Error ? error.message : 'Erro ao criar serviço');
     } finally {
@@ -148,7 +128,7 @@ export default function Services() {
     }
   };
 
-  const handleEdit = (service: Service) => {
+  const handleEdit = (service: ServiceRow) => {
     setEditingService(service);
     setFormData({
       name: service.name,
@@ -173,7 +153,7 @@ export default function Services() {
       showError('Erro ao excluir serviço');
     } else {
       success('Serviço excluído!');
-      fetchServices();
+      void invalidateServices();
     }
   };
 
@@ -208,7 +188,9 @@ export default function Services() {
           >
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <h1 className="text-2xl font-bold text-foreground">Meus Serviços</h1>
+          <div className="flex items-center gap-3 min-w-0">
+            <h1 className="text-2xl font-bold text-foreground">Meus Serviços</h1>
+          </div>
         </div>
       </header>
 

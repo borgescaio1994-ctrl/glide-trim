@@ -28,10 +28,13 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, "dist"), {
   index: "index.html",
   maxAge: "1y",
-  setHeaders: (res, path) => {
-    if (path.endsWith('.js') || path.endsWith('.mjs')) {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith("index.html")) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    }
+    if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) {
       res.setHeader('Content-Type', 'application/javascript');
-    } else if (path.endsWith('.css')) {
+    } else if (filePath.endsWith('.css')) {
       res.setHeader('Content-Type', 'text/css');
     }
   }
@@ -52,16 +55,23 @@ app.get("/api/status", (req, res) => {
   });
 });
 
+const spaIndexPath = path.join(__dirname, "dist", "index.html");
+
+function sendSpaIndex(res) {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.sendFile(spaIndexPath);
+}
+
 // Auth callback route - serve index.html for Supabase OAuth
 app.get("/auth/callback", (req, res) => {
-  res.sendFile(path.join(__dirname, "dist", "index.html"));
+  sendSpaIndex(res);
 });
 
 // SPA fallback - serve index.html for all non-API routes
 app.use((req, res, next) => {
   // Don't interfere with API routes
   if (!req.path.startsWith("/api") && req.method === "GET") {
-    res.sendFile(path.join(__dirname, "dist", "index.html"));
+    sendSpaIndex(res);
   } else {
     next();
   }

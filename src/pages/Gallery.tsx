@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/contexts/ToastContext';
-import { ArrowLeft, Plus, Trash2, Image, Loader2, Scissors } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Image, Loader2 } from 'lucide-react';
 
 interface GalleryImage {
   id: string;
@@ -150,11 +150,8 @@ export default function Gallery() {
       <header className="px-5 pt-12 pb-6">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
+          className="flex items-center mb-4 hover:opacity-80 transition-opacity"
         >
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Scissors className="w-4 h-4 text-primary" />
-          </div>
           <span className="text-lg font-semibold text-foreground">{establishmentDisplayName}</span>
         </button>
         

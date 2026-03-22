@@ -1,29 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, isToday } from 'date-fns';
+import {
+  fetchBarberHomeTitle,
+  fetchBarberDayAppointments,
+  fetchBarberStats,
+  type BarberAppointment,
+} from '@/api/barberDashboard';
+import { queryKeys } from '@/lib/queryKeys';
+import { format, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Calendar, Clock, DollarSign, TrendingUp, Users, Check, X, ChevronLeft, ChevronRight, Scissors, Crown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-
-interface Appointment {
-  id: string;
-  client_id: string;
-  service_id: string;
-  appointment_date: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  client?: {
-    full_name: string;
-  };
-  service?: {
-    name: string;
-    price: number;
-    duration_minutes: number;
-  };
-}
 
 interface BarberDashboardProps {
   isAdmin?: boolean;
@@ -36,140 +26,67 @@ interface HomeSettings {
 export default function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const homePath = profile?.profile_role === 'BARBER' ? '/barber' : '/';
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [loading, setLoading] = useState(true);
-  const [homeSettings, setHomeSettings] = useState<HomeSettings | null>(null);
-  const [stats, setStats] = useState({
+  const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+  const homeQuery = useQuery({
+    queryKey: queryKeys.barberHomeTitle(profile?.establishment_id ?? undefined),
+    queryFn: () => fetchBarberHomeTitle(profile?.establishment_id ?? null),
+    enabled: !!profile?.establishment_id,
+  });
+
+  const appointmentsQuery = useQuery({
+    queryKey: queryKeys.barberDashboard(profile?.id, dateStr),
+    queryFn: () => fetchBarberDayAppointments(profile!, selectedDate),
+    enabled: !!profile?.id,
+  });
+
+  const statsQuery = useQuery({
+    queryKey: queryKeys.barberStats(profile?.id),
+    queryFn: () => fetchBarberStats(profile!),
+    enabled: !!profile?.id,
+  });
+
+  const homeSettings: HomeSettings | null = homeQuery.data
+    ? { title: homeQuery.data.title }
+    : null;
+  const appointments = (appointmentsQuery.data ?? []) as BarberAppointment[];
+  const stats = statsQuery.data ?? {
     todayEarnings: 0,
     weekEarnings: 0,
     monthEarnings: 0,
     todayAppointments: 0,
+  };
+
+  const loading =
+    appointmentsQuery.isPending ||
+    statsQuery.isPending ||
+    (!!profile?.establishment_id && homeQuery.isPending);
+
+  const invalidateBarber = () => {
+    if (!profile?.id) return;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.barberDashboard(profile.id, dateStr) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.barberStats(profile.id) });
+  };
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: 'completed' | 'cancelled' }) => {
+      const updateData: Record<string, unknown> = { status };
+      if (status === 'completed') {
+        updateData.completed_at = new Date().toISOString();
+      } else if (status === 'cancelled') {
+        updateData.cancelled_at = new Date().toISOString();
+      }
+      const { error } = await supabase.from('appointments').update(updateData).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateBarber(),
   });
 
-  useEffect(() => {
-    if (profile?.id) {
-      fetchAppointments();
-      fetchStats();
-    }
-    fetchHomeSettings();
-  }, [profile?.id, selectedDate]);
-
-  const fetchHomeSettings = async () => {
-    try {
-      const establishmentId = profile?.establishment_id;
-      if (!establishmentId) return;
-
-      const { data } = await supabase
-        .from('establishments')
-        .select('name, home_title')
-        .eq('id', establishmentId)
-        .maybeSingle();
-
-      if (data) {
-        setHomeSettings({
-          title: ((data as any).home_title ?? data.name ?? 'BookNow') as string,
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching home settings:', error);
-    }
-  };
-
-  const fetchAppointments = async () => {
-    if (!profile?.id) return;
-
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    
-    const { data } = await supabase
-      .from('appointments')
-      .select(`
-        *,
-        client:profiles!appointments_client_id_fkey(full_name),
-        service:services(name, price, duration_minutes)
-      `)
-      .eq('barber_id', profile.id)
-      .eq('appointment_date', dateStr)
-      .order('start_time', { ascending: true });
-
-    if (data) {
-      setAppointments(data as any);
-    }
-    setLoading(false);
-  };
-
-  const fetchStats = async () => {
-    if (!profile?.id) return;
-
-    const today = new Date();
-    const todayStr = format(today, 'yyyy-MM-dd');
-    const weekStart = format(startOfWeek(today, { locale: ptBR }), 'yyyy-MM-dd');
-    const weekEnd = format(endOfWeek(today, { locale: ptBR }), 'yyyy-MM-dd');
-    const monthStart = format(startOfMonth(today), 'yyyy-MM-dd');
-    const monthEnd = format(endOfMonth(today), 'yyyy-MM-dd');
-
-    // Today's appointments count
-    const { data: todayAppts } = await supabase
-      .from('appointments')
-      .select('id')
-      .eq('barber_id', profile.id)
-      .eq('appointment_date', todayStr)
-      .eq('status', 'scheduled');
-
-    // Today's earnings
-    const { data: todayData } = await supabase
-      .from('appointments')
-      .select('service:services(price)')
-      .eq('barber_id', profile.id)
-      .gte('completed_at', startOfDay(today).toISOString())
-      .lt('completed_at', endOfDay(today).toISOString())
-      .eq('status', 'completed');
-
-    // Week earnings
-    const { data: weekData } = await supabase
-      .from('appointments')
-      .select('service:services(price)')
-      .eq('barber_id', profile.id)
-      .gte('completed_at', startOfWeek(today, { locale: ptBR }).toISOString())
-      .lt('completed_at', endOfWeek(today, { locale: ptBR }).toISOString())
-      .eq('status', 'completed');
-
-    // Month earnings
-    const { data: monthData } = await supabase
-      .from('appointments')
-      .select('service:services(price)')
-      .eq('barber_id', profile.id)
-      .gte('completed_at', startOfMonth(today).toISOString())
-      .lt('completed_at', endOfMonth(today).toISOString())
-      .eq('status', 'completed');
-
-    const sumPrices = (data: any[]) =>
-      data?.reduce((sum, item) => sum + (Number(item.service?.price) || 0), 0) || 0;
-
-    setStats({
-      todayAppointments: todayAppts?.length || 0,
-      todayEarnings: sumPrices(todayData || []),
-      weekEarnings: sumPrices(weekData || []),
-      monthEarnings: sumPrices(monthData || []),
-    });
-  };
-
-  const updateAppointmentStatus = async (id: string, status: 'completed' | 'cancelled') => {
-    const updateData: any = { status };
-    if (status === 'completed') {
-      updateData.completed_at = new Date().toISOString();
-    } else if (status === 'cancelled') {
-      updateData.cancelled_at = new Date().toISOString();
-    }
-
-    await supabase
-      .from('appointments')
-      .update(updateData)
-      .eq('id', id);
-
-    fetchAppointments();
-    fetchStats();
+  const updateAppointmentStatus = (id: string, status: 'completed' | 'cancelled') => {
+    updateMutation.mutate({ id, status });
   };
 
   const formatPrice = (price: number) => {
@@ -219,11 +136,8 @@ export default function BarberDashboard({ isAdmin = false }: BarberDashboardProp
           <button
             type="button"
             onClick={() => navigate(homePath)}
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            className="flex items-center hover:opacity-80 transition-opacity"
           >
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Scissors className="w-4 h-4 text-primary" />
-            </div>
             <span className="text-lg font-semibold text-foreground">
               {homeSettings?.title || 'BookNow'}
             </span>

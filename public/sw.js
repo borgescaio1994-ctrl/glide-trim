@@ -4,8 +4,8 @@
  * - Navegação: sempre rede primeiro.
  * - Precache só de assets estáveis (manifest, logo).
  */
-const CACHE_STATIC = 'booknow-v3-static';
-const PRECACHE_URLS = ['/manifest.webmanifest', '/brand-logo.png'];
+const CACHE_STATIC = 'booknow-v4-static';
+const PRECACHE_URLS = ['/manifest.webmanifest', '/brand-logo.svg'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

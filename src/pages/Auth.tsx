@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/contexts/ToastContext';
-import { Scissors, User, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { clearSupabaseAuthStorage } from '@/lib/authStorage';
+import { User, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
 
 /** Aguarda o trigger handle_new_user popular `profiles` após signUp/signIn. */
 async function waitForProfileRole(userId: string): Promise<ProfileRole | null> {
@@ -28,12 +29,15 @@ async function waitForProfileRole(userId: string): Promise<ProfileRole | null> {
   return null;
 }
 
+type AssertTabResult =
+  | { ok: true; profileRole: ProfileRole }
+  | { ok: false; message: string };
+
 /**
  * Garante que a aba (cliente vs profissional) bate com o perfil no banco.
+ * SUPER_ADMIN pode entrar pela aba "Sou profissional" (acesso à gestão global).
  */
-async function assertLoginMatchesRoleTab(
-  tab: 'client' | 'barber'
-): Promise<{ ok: true } | { ok: false; message: string }> {
+async function assertLoginMatchesRoleTab(tab: 'client' | 'barber'): Promise<AssertTabResult> {
   const {
     data: { user: u },
   } = await supabase.auth.getUser();
@@ -44,6 +48,7 @@ async function assertLoginMatchesRoleTab(
   const pr = await waitForProfileRole(u.id);
   if (!pr) {
     await supabase.auth.signOut();
+    clearSupabaseAuthStorage();
     return {
       ok: false,
       message: 'Não foi possível carregar seu perfil. Tente de novo em instantes.',
@@ -51,19 +56,24 @@ async function assertLoginMatchesRoleTab(
   }
 
   if (tab === 'barber') {
+    if (pr === 'SUPER_ADMIN') {
+      return { ok: true, profileRole: pr };
+    }
     if (pr !== 'BARBER' && pr !== 'ADMIN_BARBER') {
       await supabase.auth.signOut();
+      clearSupabaseAuthStorage();
       return {
         ok: false,
         message:
           'Este email não está cadastrado como profissional. O dono da loja precisa adicionar você no painel antes do login.',
       };
     }
-    return { ok: true };
+    return { ok: true, profileRole: pr };
   }
 
   if (pr === 'BARBER' || pr === 'ADMIN_BARBER') {
     await supabase.auth.signOut();
+    clearSupabaseAuthStorage();
     return {
       ok: false,
       message: 'Esta conta é de profissional. Use a opção "Sou profissional" para entrar.',
@@ -71,10 +81,11 @@ async function assertLoginMatchesRoleTab(
   }
   if (pr === 'SUPER_ADMIN') {
     await supabase.auth.signOut();
+    clearSupabaseAuthStorage();
     return { ok: false, message: 'Acesse pelo fluxo de super administrador.' };
   }
 
-  return { ok: true };
+  return { ok: true, profileRole: pr };
 }
 
 /** Cliente: mesma loja do domínio/slug atual (ou vincula na primeira vez se ainda não tiver loja). */
@@ -116,6 +127,7 @@ async function assertCustomerSameEstablishment(
 
   if (pid !== establishmentId) {
     await supabase.auth.signOut();
+    clearSupabaseAuthStorage();
     return {
       ok: false,
       message:
@@ -278,7 +290,7 @@ export default function Auth() {
           }
         }
       } else {
-        // Login de profissional (somente quem foi cadastrado pelo dono)
+        // Login de profissional (BARBER / ADMIN_BARBER / SUPER_ADMIN)
         if (!validateEmail(email)) {
           toastError('Por favor, informe um email válido');
           setIsLoading(false);
@@ -300,8 +312,14 @@ export default function Auth() {
             toastError(check.message);
             return;
           }
+          const uid = (await supabase.auth.getUser()).data.user?.id;
+          if (uid) await fetchProfile(uid);
           success('Login realizado com sucesso!');
-          navigate('/barber');
+          if (check.profileRole === 'SUPER_ADMIN') {
+            navigate('/super-admin', { replace: true });
+          } else {
+            navigate('/barber');
+          }
         }
       }
     } catch (error) {
@@ -320,11 +338,8 @@ export default function Auth() {
       <header className="p-6">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          className="flex items-center hover:opacity-80 transition-opacity"
         >
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Scissors className="w-5 h-5 text-primary" />
-          </div>
           <span className="text-xl font-semibold text-foreground">{establishmentDisplayName}</span>
         </button>
       </header>
@@ -336,7 +351,7 @@ export default function Auth() {
             <>
               <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold text-foreground mb-2">
-                  Bem-vindo ao {establishmentDisplayName}
+                  Bem-vindo a {establishmentDisplayName}
                 </h1>
                 <p className="text-muted-foreground">
                   Escolha seu tipo de conta para continuar
@@ -466,9 +481,6 @@ export default function Auth() {
                 </h1>
                 <p className="text-muted-foreground">
                   Entre com seu email e senha
-                </p>
-                <p className="text-xs text-muted-foreground mt-3 text-center px-1">
-                  Só é possível entrar com um email que o dono da loja cadastrou no painel.
                 </p>
               </div>
               <form onSubmit={handleSubmit} className="space-y-5">

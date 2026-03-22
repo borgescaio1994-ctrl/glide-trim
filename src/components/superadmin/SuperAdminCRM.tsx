@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, Eye, Lock, Plus, Store, Users, Calendar, Shield, Trash2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Eye, Lock, Plus, Store, Users, Calendar, Trash2, CheckCircle2 } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 import { messageFromFunctionsInvoke } from '@/lib/edgeFunctionError';
 
@@ -493,7 +493,6 @@ export default function SuperAdminCRM() {
       <header className="px-5 pt-12 pb-6 bg-gradient-to-b from-primary/10 to-transparent">
         <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-2">
-            <Shield className="w-6 h-6 text-primary" />
             <h1 className="text-2xl font-bold text-foreground">Gestão de Franquias</h1>
           </div>
           <div className="ml-auto flex items-center gap-2">

@@ -1,96 +1,31 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, subDays } from 'date-fns';
+import { fetchFinancesStats } from '@/api/finances';
+import { queryKeys } from '@/lib/queryKeys';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, DollarSign, TrendingUp, Calendar, Users } from 'lucide-react';
-
-interface DailyStats {
-  date: string;
-  earnings: number;
-  count: number;
-}
+import { ArrowLeft, DollarSign, TrendingUp, Users } from 'lucide-react';
 
 export default function Finances() {
   const { profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'week' | 'month'>('week');
-  const [stats, setStats] = useState({
+
+  const financesQuery = useQuery({
+    queryKey: queryKeys.finances(profile?.id, period),
+    queryFn: () => fetchFinancesStats(profile!.id, period),
+    enabled: !!profile?.id && !authLoading,
+  });
+
+  const stats = financesQuery.data ?? {
     total: 0,
     count: 0,
     average: 0,
-    dailyStats: [] as DailyStats[],
-  });
-
-  const fetchStats = useCallback(async () => {
-    if (!profile?.id) return;
-    setLoading(true);
-    try {
-      const today = new Date();
-      let startDate: Date;
-      let endDate: Date;
-
-      if (period === 'week') {
-        startDate = startOfWeek(today, { locale: ptBR });
-        endDate = endOfWeek(today, { locale: ptBR });
-      } else {
-        startDate = startOfMonth(today);
-        endDate = endOfMonth(today);
-      }
-
-      const { data } = await supabase
-        .from('appointments')
-        .select('appointment_date, service:services(price)')
-        .eq('barber_id', profile.id)
-        .eq('status', 'completed')
-        .gte('appointment_date', format(startDate, 'yyyy-MM-dd'))
-        .lte('appointment_date', format(endDate, 'yyyy-MM-dd'));
-
-      if (data) {
-        const totalEarnings = data.reduce(
-          (sum, item) => sum + (Number((item.service as any)?.price) || 0),
-          0
-        );
-
-        const days = eachDayOfInterval({ start: startDate, end: endDate });
-        const dailyStats = days.map((day) => {
-          const dateStr = format(day, 'yyyy-MM-dd');
-          const dayAppointments = data.filter((a) => a.appointment_date === dateStr);
-          const dayEarnings = dayAppointments.reduce(
-            (sum, item) => sum + (Number((item.service as any)?.price) || 0),
-            0
-          );
-          return {
-            date: dateStr,
-            earnings: dayEarnings,
-            count: dayAppointments.length,
-          };
-        });
-
-        setStats({
-          total: totalEarnings,
-          count: data.length,
-          average: data.length > 0 ? totalEarnings / data.length : 0,
-          dailyStats,
-        });
-      }
-    } catch (e) {
-      console.error('Finances fetchStats:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [profile?.id, period]);
-
-  useEffect(() => {
-    if (authLoading) return;
-    if (!profile?.id) {
-      setLoading(false);
-      return;
-    }
-    fetchStats();
-  }, [profile?.id, period, fetchStats, authLoading]);
+    dailyStats: [],
+  };
+  const loading = financesQuery.isPending;
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -112,7 +47,9 @@ export default function Finances() {
           >
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <h1 className="text-2xl font-bold text-foreground">Financeiro</h1>
+          <div className="flex items-center gap-3 min-w-0">
+            <h1 className="text-2xl font-bold text-foreground">Financeiro</h1>
+          </div>
         </div>
 
         {/* Period Tabs */}
