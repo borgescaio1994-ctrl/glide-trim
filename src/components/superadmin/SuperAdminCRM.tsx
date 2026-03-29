@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
+import { deleteUserFromAuth } from '@/lib/authAdmin';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -299,6 +300,18 @@ export default function SuperAdminCRM() {
     const now = Date.now();
     const archivedSlug = `${est.slug}--deleted-${now}`;
 
+    // First get the owner's email to delete from Auth
+    const { data: ownerData, error: ownerError } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('establishment_id', est.id)
+      .eq('profile_role', 'ADMIN_OWNER')
+      .maybeSingle();
+
+    if (ownerError && ownerError.code !== 'PGRST116') {
+      console.error('Error fetching owner data:', ownerError);
+    }
+
     const { error } = await supabase
       .from('establishments')
       .update({
@@ -312,11 +325,22 @@ export default function SuperAdminCRM() {
       .eq('id', est.id);
 
     if (error) {
-      showError(error.message || 'Erro ao excluir loja');
+      console.error('Error archiving establishment:', error);
+      showError('Erro ao arquivar unidade');
       return;
     }
-    success('Loja excluída da lista com sucesso.');
-    await refresh();
+
+    // Delete owner from Auth to free up the email
+    if (ownerData?.email) {
+      const authResult = await deleteUserFromAuth(ownerData.email);
+      if (authResult.error) {
+        console.warn('Could not delete owner from auth:', authResult.error);
+        // Don't show error - establishment deletion was successful
+      }
+    }
+
+    success('Unidade arquivada com sucesso');
+    fetchEstablishments();
   };
 
   const handleOpenDetails = async (est: Establishment) => {
@@ -361,6 +385,7 @@ export default function SuperAdminCRM() {
     try {
       const slug = newUnit.establishment_slug.trim().toLowerCase();
       const customDomain = newUnit.establishment_domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      const domainWithHttps = customDomain ? `https://${customDomain}` : null;
 
       // Validação antecipada para evitar erro genérico 409 (unique conflict)
       const { data: slugExists, error: slugCheckErr } = await supabase
@@ -379,7 +404,7 @@ export default function SuperAdminCRM() {
         const { data: domainExists, error: domainCheckErr } = await supabase
           .from('establishments')
           .select('id')
-          .ilike('custom_domain', customDomain)
+          .ilike('custom_domain', domainWithHttps || '')
           .is('deleted_at', null)
           .limit(1);
         if (domainCheckErr) throw domainCheckErr;
@@ -412,7 +437,7 @@ export default function SuperAdminCRM() {
         .insert({
           name: newUnit.establishment_name.trim(),
           slug,
-          custom_domain: customDomain || null,
+          custom_domain: domainWithHttps || null,
           onboarding_status: 'PENDING',
           plan_type: newUnit.plan_type,
           subscription_status: subscriptionStatus,

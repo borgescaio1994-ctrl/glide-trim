@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import ClientHome from '@/components/client/ClientHome';
 import BarberDashboard from '@/components/barber/BarberDashboard';
 import { Loader2 } from 'lucide-react';
+import { AppBrandLogo } from '@/components/AppBrandLogo';
 
 /** Rotas que montam esta página (evita redirect desnecessário se a rota mudar). */
 const INDEX_PATHS = new Set(['/', '/auth/callback']);
@@ -25,36 +26,27 @@ export default function Index() {
     }
   }, [profile?.profile_role, loading, navigate, location.pathname]);
 
+  const bootScreen = (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-5 bg-background px-6">
+      <AppBrandLogo className="h-20 w-20 object-contain" />
+      <Loader2 className="w-9 h-9 animate-spin text-primary" />
+    </div>
+  );
+
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
+    return bootScreen;
   }
 
   if (profile?.profile_role === 'SUPER_ADMIN') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
+    return bootScreen;
   }
 
   if (profile?.profile_role === 'BARBER') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
+    return bootScreen;
   }
 
   if (user && !profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
+    return bootScreen;
   }
 
   // Dono da unidade: agenda profissional na home — não a home de cliente

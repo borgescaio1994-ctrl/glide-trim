@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
+import { AppBrandLogo } from '@/components/AppBrandLogo';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -10,8 +11,9 @@ export default function AssinaturaPendente() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-5">
       <div className="max-w-md w-full bg-card border border-border rounded-2xl p-6 text-center space-y-4">
-        <div className="flex justify-center">
-          <AlertTriangle className="w-12 h-12 text-amber-500" aria-hidden />
+        <div className="flex flex-col items-center gap-3">
+          <AppBrandLogo className="h-16 w-16 object-contain" />
+          <AlertTriangle className="w-10 h-10 text-amber-500" aria-hidden />
         </div>
         <h1 className="text-2xl font-bold">Sistema em Manutenção</h1>
         <p className="text-muted-foreground">

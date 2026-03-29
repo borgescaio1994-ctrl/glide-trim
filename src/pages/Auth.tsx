@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/contexts/ToastContext';
 import { clearSupabaseAuthStorage } from '@/lib/authStorage';
 import { User, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { AppBrandLogo } from '@/components/AppBrandLogo';
 
 /** Aguarda o trigger handle_new_user popular `profiles` após signUp/signIn. */
 async function waitForProfileRole(userId: string): Promise<ProfileRole | null> {
@@ -338,9 +339,10 @@ export default function Auth() {
       <header className="p-6">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center hover:opacity-80 transition-opacity"
+          className="flex items-center gap-3 text-left hover:opacity-90 transition-opacity"
         >
-          <span className="text-xl font-semibold text-foreground">{establishmentDisplayName}</span>
+          <AppBrandLogo className="h-12 w-12 shrink-0 object-contain" />
+          <span className="text-xl font-semibold text-foreground leading-tight">{establishmentDisplayName}</span>
         </button>
       </header>
 

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Scissors, Clock, DollarSign, ChevronRight, Calendar, Image, Camera } from 'lucide-react';
+import { ServiceImageThumb } from '@/components/ServiceImageThumb';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -19,6 +20,7 @@ interface Service {
   description: string | null;
   duration_minutes: number;
   price: number;
+  image_url: string | null;
 }
 
 interface Schedule {
@@ -281,9 +283,11 @@ export default function BarberProfile() {
                 onClick={() => navigate(`/book/${barberId}/${service.id}`)}
                 className="w-full bg-card rounded-2xl p-4 flex items-center gap-4 group hover:bg-card/80 transition-colors border border-border/50"
               >
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Scissors className="w-5 h-5 text-primary" />
-                </div>
+                <ServiceImageThumb
+                  imageUrl={service.image_url}
+                  alt={service.name}
+                  className="h-12 w-12 rounded-xl"
+                />
                 <div className="flex-1 text-left">
                   <h3 className="font-semibold text-foreground">{service.name}</h3>
                   {service.description && (

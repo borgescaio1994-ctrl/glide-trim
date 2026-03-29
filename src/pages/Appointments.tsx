@@ -7,7 +7,8 @@ import { fetchAppointmentsForProfile } from '@/api/appointmentsList';
 import { queryKeys } from '@/lib/queryKeys';
 import { format, parseISO, isPast, isToday, isFuture } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, Calendar, Clock, DollarSign, X, Scissors, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, DollarSign, X, CheckCircle } from 'lucide-react';
+import { ServiceImageThumb } from '@/components/ServiceImageThumb';
 import { useToast } from '@/contexts/ToastContext';
 
 interface Appointment {
@@ -26,6 +27,7 @@ interface Appointment {
     name: string;
     price: number;
     duration_minutes: number;
+    image_url: string | null;
   };
 }
 
@@ -198,9 +200,11 @@ export default function Appointments() {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <Scissors className="w-5 h-5 text-primary" />
-                    </div>
+                    <ServiceImageThumb
+                      imageUrl={appointment.service?.image_url}
+                      alt={appointment.service?.name ?? 'Serviço'}
+                      className="h-12 w-12 rounded-xl"
+                    />
                     <div>
                       <h3 className="font-semibold text-foreground">
                         {appointment.service?.name}

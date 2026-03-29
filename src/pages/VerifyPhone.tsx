@@ -6,7 +6,8 @@ import { setDeferred } from '@/lib/verificationStorage';
 import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, ShieldCheck, Loader2, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, MessageCircle } from 'lucide-react';
+import { AppBrandLogo } from '@/components/AppBrandLogo';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useEstablishment } from '@/hooks/useEstablishment';
@@ -192,8 +193,8 @@ export default function VerifyPhone() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-5">
       <div className="max-w-md w-full space-y-6">
-        <div className="text-center space-y-2">
-          <ShieldCheck className="w-12 h-12 text-primary mx-auto" />
+        <div className="text-center space-y-3">
+          <AppBrandLogo className="mx-auto h-20 w-20 object-contain" />
           <h1 className="text-2xl font-bold font-montserrat">Vincular WhatsApp</h1>
           <p className="text-muted-foreground">
             Envie um código para seu WhatsApp e confirme para vincular

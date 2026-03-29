@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/hooks/useAuth';
 import { ToastProvider } from '@/contexts/ToastContext';
@@ -5,24 +6,33 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import PhoneVerificationGuard from '@/components/PhoneVerificationGuard';
 import CustomerTenantGuard from '@/components/CustomerTenantGuard';
 import Layout from '@/components/Layout';
-import Index from '@/pages/Index';
-import Auth from '@/pages/Auth';
-import Profile from '@/pages/Profile';
-import Services from '@/pages/Services';
-import Schedule from '@/pages/Schedule';
-import Appointments from '@/pages/Appointments';
-import Finances from '@/pages/Finances';
-import BookAppointment from '@/pages/BookAppointment';
-import BarberProfile from '@/pages/BarberProfile';
-import Gallery from '@/pages/Gallery';
-import AdminDashboard from '@/pages/AdminDashboard';
-import SuperAdmin from '@/pages/SuperAdmin';
-import VerifyPhone from '@/pages/VerifyPhone';
-import AssinaturaPendente from '@/pages/AssinaturaPendente';
-import BarberPanel from '@/pages/BarberPanel';
-import NotFound from '@/pages/NotFound';
 import ScrollAndReloadSync from '@/components/ScrollAndReloadSync';
 import AuthBootstrapGate from '@/components/AuthBootstrapGate';
+
+const Index = lazy(() => import('@/pages/Index'));
+const Auth = lazy(() => import('@/pages/Auth'));
+const Profile = lazy(() => import('@/pages/Profile'));
+const Services = lazy(() => import('@/pages/Services'));
+const Schedule = lazy(() => import('@/pages/Schedule'));
+const Appointments = lazy(() => import('@/pages/Appointments'));
+const Finances = lazy(() => import('@/pages/Finances'));
+const BookAppointment = lazy(() => import('@/pages/BookAppointment'));
+const BarberProfile = lazy(() => import('@/pages/BarberProfile'));
+const Gallery = lazy(() => import('@/pages/Gallery'));
+const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
+const SuperAdmin = lazy(() => import('@/pages/SuperAdmin'));
+const VerifyPhone = lazy(() => import('@/pages/VerifyPhone'));
+const AssinaturaPendente = lazy(() => import('@/pages/AssinaturaPendente'));
+const BarberPanel = lazy(() => import('@/pages/BarberPanel'));
+const NotFound = lazy(() => import('@/pages/NotFound'));
+
+function PageFallback() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
+      Carregando…
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -40,6 +50,7 @@ export default function App() {
           <PhoneVerificationGuard>
             <CustomerTenantGuard />
             <Layout>
+              <Suspense fallback={<PageFallback />}>
               <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
@@ -59,6 +70,7 @@ export default function App() {
               <Route path="/auth/callback" element={<Index />} />
               <Route path="*" element={<NotFound />} />
               </Routes>
+              </Suspense>
             </Layout>
           </PhoneVerificationGuard>
           </ThemeProvider>

@@ -9,7 +9,7 @@ export type AppointmentRow = {
   status: string;
   barber?: { full_name: string };
   client?: { full_name: string };
-  service?: { name: string; price: number; duration_minutes: number };
+  service?: { name: string; price: number; duration_minutes: number; image_url: string | null };
 };
 
 export async function fetchAppointmentsForProfile(profile: Profile): Promise<AppointmentRow[]> {
@@ -37,7 +37,7 @@ export async function fetchAppointmentsForProfile(profile: Profile): Promise<App
         *,
         barber:profiles!appointments_barber_id_fkey(full_name),
         client:profiles!appointments_client_id_fkey(full_name),
-        service:services(name, price, duration_minutes)
+        service:services(name, price, duration_minutes, image_url)
       `
     )
     .eq(column, profile.id)

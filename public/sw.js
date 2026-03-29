@@ -2,10 +2,10 @@
  * Service Worker — estratégia segura para SPA (Vite):
  * - Nunca servir index.html antigo do cache (evita chunk JS 404 e tela carregando para sempre).
  * - Navegação: sempre rede primeiro.
- * - Precache só de assets estáveis (manifest, logo).
+ * - Precache só do manifest (ícone/logo não entra no precache para evitar ícone antigo preso no cache).
  */
-const CACHE_STATIC = 'booknow-v4-static';
-const PRECACHE_URLS = ['/manifest.webmanifest', '/brand-logo.svg'];
+const CACHE_STATIC = 'booknow-v12-static';
+const PRECACHE_URLS = ['/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

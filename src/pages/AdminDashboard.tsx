@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { deleteUserFromAuth } from '@/lib/authAdmin';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -438,6 +439,18 @@ export default function AdminDashboard() {
     setDeletingBarber(barberId);
 
     try {
+      // First get the barber data to access the email
+      const { data: barber, error: fetchError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('id', barberId)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching barber data:', fetchError);
+        throw fetchError;
+      }
+
       // Delete appointments first
       const { error: aptError } = await supabase
         .from('appointments')
@@ -459,23 +472,13 @@ export default function AdminDashboard() {
       }
 
       // Delete schedules
-      const { error: schError } = await supabase
+      const { error: schedError } = await supabase
         .from('barber_schedules')
         .delete()
         .eq('barber_id', barberId);
-      if (schError) {
-        console.error('Error deleting schedules:', schError);
-        throw schError;
-      }
-
-      // Delete gallery
-      const { error: galError } = await supabase
-        .from('barber_gallery')
-        .delete()
-        .eq('barber_id', barberId);
-      if (galError) {
-        console.error('Error deleting gallery:', galError);
-        throw galError;
+      if (schedError) {
+        console.error('Error deleting schedules:', schedError);
+        throw schedError;
       }
 
       // Delete profile
@@ -487,6 +490,15 @@ export default function AdminDashboard() {
       if (error) {
         console.error('Error deleting profile:', error);
         throw error;
+      }
+
+      // Delete user from Auth to free up the email
+      if (barber.email) {
+        const authResult = await deleteUserFromAuth(barber.email);
+        if (authResult.error) {
+          console.warn('Could not delete user from auth:', authResult.error);
+          // Don't throw error - profile deletion was successful
+        }
       }
 
       success('Profissional removido com sucesso');

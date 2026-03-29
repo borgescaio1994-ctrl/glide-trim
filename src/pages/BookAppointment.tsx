@@ -7,7 +7,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/contexts/ToastContext';
-import { ArrowLeft, Clock, Loader2, Scissors, DollarSign, User } from 'lucide-react';
+import { ArrowLeft, Clock, Loader2, DollarSign } from 'lucide-react';
+import { ServiceImageThumb } from '@/components/ServiceImageThumb';
 
 export default function BookAppointment() {
   const { barberId, serviceId } = useParams();
@@ -371,9 +372,11 @@ export default function BookAppointment() {
         {/* Informações do serviço */}
         <div className="bg-card rounded-xl p-4 mb-6 border">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Scissors className="w-5 h-5 text-primary" />
-            </div>
+            <ServiceImageThumb
+              imageUrl={service.image_url}
+              alt={service.name}
+              className="h-12 w-12 rounded-xl"
+            />
             <div>
               <h3 className="font-semibold">{service.name}</h3>
               <p className="text-sm text-muted-foreground">Profissional: {barberName}</p>
