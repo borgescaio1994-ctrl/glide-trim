@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="chipFace" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a1d26"/>
+      <stop offset="50%" stop-color="#0d0f14"/>
+      <stop offset="100%" stop-color="#050608"/>
+    </linearGradient>
+    <linearGradient id="frameMetal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#94a3b8"/>
+      <stop offset="35%" stop-color="#e2e8f0"/>
+      <stop offset="65%" stop-color="#64748b"/>
+      <stop offset="100%" stop-color="#475569"/>
+    </linearGradient>
+    <linearGradient id="sGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="50%" stop-color="#00e5ff"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <filter id="softGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="1.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="traceGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="0.8" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Corpo do chip -->
+  <rect x="18" y="18" width="84" height="84" rx="16" fill="url(#chipFace)" stroke="url(#frameMetal)" stroke-width="1.35"/>
+  <rect x="25" y="25" width="70" height="70" rx="11" fill="#040508" stroke="rgba(148,163,184,0.25)" stroke-width="0.8"/>
+
+  <!-- S estilizado (duas curvas) -->
+  <path d="M 52 44 C 52 38 58 36 62 38 C 68 41 68 48 62 50 C 56 52 56 54 62 56 C 70 58 70 66 62 68 C 54 70 50 66 50 60" stroke="url(#sGlow)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#softGlow)"/>
+  <path d="M 68 52 C 74 50 78 54 78 60 C 78 68 70 74 60 74 C 52 74 48 70 48 64" stroke="url(#sGlow)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95" filter="url(#softGlow)"/>
+
+  <!-- Trilhas base (metal escuro)  esquerda -->
+  <g stroke="#2d3544" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M 18 34 L 8 34 L 5 31"/>
+    <path d="M 18 44 L 7 44 L 4 41"/>
+    <path d="M 18 54 L 8 54 L 5 57"/>
+    <path d="M 18 64 L 7 64 L 4 67"/>
+    <path d="M 18 74 L 8 74 L 5 77"/>
+  </g>
+  <!-- direita -->
+  <g stroke="#2d3544" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M 102 34 L 112 34 L 115 31"/>
+    <path d="M 102 44 L 113 44 L 116 41"/>
+    <path d="M 102 54 L 112 54 L 115 57"/>
+    <path d="M 102 64 L 113 64 L 116 67"/>
+    <path d="M 102 74 L 112 74 L 115 77"/>
+  </g>
+  <!-- topo -->
+  <g stroke="#2d3544" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M 44 18 L 44 8 L 41 5"/>
+    <path d="M 60 18 L 60 7 L 60 4"/>
+    <path d="M 76 18 L 76 8 L 79 5"/>
+  </g>
+  <!-- base (pinos) -->
+  <g stroke="#2d3544" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M 42 102 L 42 110 L 39 113"/>
+    <path d="M 54 102 L 54 111 L 54 116"/>
+    <path d="M 66 102 L 66 111 L 66 116"/>
+    <path d="M 78 102 L 78 110 L 81 113"/>
+  </g>
+
+  <!-- Pulsos de luz (cyan)  mesmo d que a base, anima˜˜o por trilha -->
+  <g stroke="#00e5ff" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#traceGlow)" opacity="0.92">
+    <path stroke-dasharray="4 14" d="M 18 34 L 8 34 L 5 31">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="2.1s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 18 44 L 7 44 L 4 41">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.85s" begin="0.25s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 18 54 L 8 54 L 5 57">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="2.35s" begin="0.5s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 18 64 L 7 64 L 4 67">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.95s" begin="0.12s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 18 74 L 8 74 L 5 77">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="2.2s" begin="0.4s" repeatCount="indefinite"/>
+    </path>
+
+    <path stroke-dasharray="4 14" d="M 102 34 L 112 34 L 115 31">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="2s" begin="0.35s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 102 44 L 113 44 L 116 41">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.75s" begin="0.55s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 102 54 L 112 54 L 115 57">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="2.25s" begin="0.08s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 102 64 L 113 64 L 116 67">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.9s" begin="0.62s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 102 74 L 112 74 L 115 77">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="2.15s" begin="0.28s" repeatCount="indefinite"/>
+    </path>
+
+    <path stroke-dasharray="4 14" d="M 44 18 L 44 8 L 41 5">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.7s" begin="0.2s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 60 18 L 60 7 L 60 4">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.55s" begin="0.45s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 76 18 L 76 8 L 79 5">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.8s" begin="0.1s" repeatCount="indefinite"/>
+    </path>
+
+    <path stroke-dasharray="4 14" d="M 42 102 L 42 110 L 39 113">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.65s" begin="0.33s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 54 102 L 54 111 L 54 116">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.5s" begin="0.58s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 66 102 L 66 111 L 66 116">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.72s" begin="0.05s" repeatCount="indefinite"/>
+    </path>
+    <path stroke-dasharray="4 14" d="M 78 102 L 78 110 L 81 113">
+      <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.88s" begin="0.4s" repeatCount="indefinite"/>
+    </path>
+  </g>
+
+  <!-- Pads nos extremos (pontos de contato) -->
+  <g fill="#475569" opacity="0.9">
+    <circle cx="5" cy="31" r="1.6"/><circle cx="4" cy="41" r="1.6"/><circle cx="5" cy="57" r="1.6"/><circle cx="4" cy="67" r="1.6"/><circle cx="5" cy="77" r="1.6"/>
+    <circle cx="115" cy="31" r="1.6"/><circle cx="116" cy="41" r="1.6"/><circle cx="115" cy="57" r="1.6"/><circle cx="116" cy="67" r="1.6"/><circle cx="115" cy="77" r="1.6"/>
+    <circle cx="41" cy="5" r="1.6"/><circle cx="60" cy="4" r="1.6"/><circle cx="79" cy="5" r="1.6"/>
+    <circle cx="39" cy="113" r="1.6"/><circle cx="54" cy="116" r="1.6"/><circle cx="66" cy="116" r="1.6"/><circle cx="81" cy="113" r="1.6"/>
+  </g>
+</svg>

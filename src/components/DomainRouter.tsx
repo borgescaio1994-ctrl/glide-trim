@@ -1,31 +1,23 @@
-import React, { useEffect } from 'react'
+import React from 'react'
+import SynapseLandingPage from '../pages/SynapseLandingPage'
+import TenantPage from '../pages/TenantPage'
 
 /**
  * Componente que decide qual página renderizar baseado no domínio
- * - synapses-ia.com.br → Redireciona para landing page existente
+ * - synapses-ia.com.br → Landing page da Synapse.ia (integrada)
  * - subdomínios válidos → Página do tenant específico
  */
 export default function DomainRouter() {
   const hostname = window.location.hostname
   
-  useEffect(() => {
-    // Se for domínio principal, redireciona para sua landing page existente
-    if (hostname === 'synapses-ia.com.br' || 
-        hostname === 'www.synapses-ia.com.br' ||
-        hostname === 'localhost:3000' ||
-        hostname === 'localhost:5173') {
-      window.location.href = 'https://synapse-ia.duckdns.org'
-      return
-    }
-  }, [hostname])
+  // Se for domínio principal, mostra landing page integrada
+  if (hostname === 'synapses-ia.com.br' || 
+      hostname === 'www.synapses-ia.com.br' ||
+      hostname === 'localhost:3000' ||
+      hostname === 'localhost:5173') {
+    return <SynapseLandingPage />
+  }
   
-  // Enquanto redireciona, mostra loading
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Redirecionando...</p>
-      </div>
-    </div>
-  )
+  // Se for subdomínio ou domínio personalizado, mostra página do tenant
+  return <TenantPage />
 }
