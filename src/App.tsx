@@ -5,6 +5,7 @@ import { ToastProvider } from '@/contexts/ToastContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import PhoneVerificationGuard from '@/components/PhoneVerificationGuard';
 import CustomerTenantGuard from '@/components/CustomerTenantGuard';
+import SlugValidator from '@/components/SlugValidator';
 import Layout from '@/components/Layout';
 import ScrollAndReloadSync from '@/components/ScrollAndReloadSync';
 import AuthBootstrapGate from '@/components/AuthBootstrapGate';
@@ -25,6 +26,8 @@ const VerifyPhone = lazy(() => import('@/pages/VerifyPhone'));
 const AssinaturaPendente = lazy(() => import('@/pages/AssinaturaPendente'));
 const BarberPanel = lazy(() => import('@/pages/BarberPanel'));
 const TenantPage = lazy(() => import('@/pages/TenantPage'));
+const AgendarSlugPage = lazy(() => import('@/pages/agendar/[slug]/index'));
+const NotFound404 = lazy(() => import('@/pages/NotFound404'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 function PageFallback() {
@@ -70,6 +73,15 @@ export default function App() {
               <Route path="/verify-phone" element={<VerifyPhone />} />
               <Route path="/auth/callback" element={<Index />} />
               <Route path="/tenant" element={<TenantPage />} />
+              <Route 
+                path="/agendar/:slug" 
+                element={
+                  <SlugValidator>
+                    <AgendarSlugPage />
+                  </SlugValidator>
+                } 
+              />
+              <Route path="/404" element={<NotFound404 />} />
               <Route path="*" element={<NotFound />} />
               </Routes>
               </Suspense>
