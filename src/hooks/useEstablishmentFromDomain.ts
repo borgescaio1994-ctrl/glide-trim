@@ -49,15 +49,20 @@ export function useEstablishmentFromDomain() {
           .single()
 
         if (error) {
-          setError('Estabelecimento não encontrado')
+          // Se não encontrar, redireciona para 404
+          if (error.code === 'PGRST116') {
+            window.location.href = '/404'
+            return
+          }
+          setError('Erro ao carregar estabelecimento')
           console.error('Error fetching establishment:', error)
           setLoading(false)
           return
         }
 
         if (!data) {
-          setError('Estabelecimento não encontrado')
-          setLoading(false)
+          // Se não encontrar, redireciona para 404
+          window.location.href = '/404'
           return
         }
 

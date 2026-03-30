@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import PhoneVerificationGuard from '@/components/PhoneVerificationGuard';
 import CustomerTenantGuard from '@/components/CustomerTenantGuard';
 import SlugValidator from '@/components/SlugValidator';
+import DomainGuard from '@/components/DomainGuard';
 import Layout from '@/components/Layout';
 import ScrollAndReloadSync from '@/components/ScrollAndReloadSync';
 import AuthBootstrapGate from '@/components/AuthBootstrapGate';
@@ -49,6 +50,7 @@ export default function App() {
             v7_relativeSplatPath: true,
           }}
         >
+          <DomainGuard>
           <ScrollAndReloadSync />
           <ThemeProvider>
           <PhoneVerificationGuard>
@@ -88,6 +90,7 @@ export default function App() {
             </Layout>
           </PhoneVerificationGuard>
           </ThemeProvider>
+          </DomainGuard>
         </BrowserRouter>
         </AuthBootstrapGate>
       </ToastProvider>
