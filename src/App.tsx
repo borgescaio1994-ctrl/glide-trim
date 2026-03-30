@@ -24,6 +24,7 @@ const SuperAdmin = lazy(() => import('@/pages/SuperAdmin'));
 const VerifyPhone = lazy(() => import('@/pages/VerifyPhone'));
 const AssinaturaPendente = lazy(() => import('@/pages/AssinaturaPendente'));
 const BarberPanel = lazy(() => import('@/pages/BarberPanel'));
+const TenantPage = lazy(() => import('@/pages/TenantPage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 function PageFallback() {
@@ -68,6 +69,7 @@ export default function App() {
               <Route path="/assinatura-pendente" element={<AssinaturaPendente />} />
               <Route path="/verify-phone" element={<VerifyPhone />} />
               <Route path="/auth/callback" element={<Index />} />
+              <Route path="/tenant" element={<TenantPage />} />
               <Route path="*" element={<NotFound />} />
               </Routes>
               </Suspense>

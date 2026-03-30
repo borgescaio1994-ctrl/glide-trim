@@ -1,59 +1,49 @@
-import { useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-import { useEstablishment } from '@/hooks/useEstablishment';
-import { useToast } from '@/contexts/ToastContext';
+import React, { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/useAuth'
+import { useEstablishmentFromDomain } from '@/hooks/useEstablishmentFromDomain'
 
 /**
- * Cliente (CUSTOMER): conta vinculada a uma única unidade.
- * - Sem establishment_id no perfil (legado): vincula à loja atual na primeira visita.
- * - Com establishment_id: se acessar outra loja (domínio/slug), encerra sessão.
+ * Guard para gerenciar acesso de clientes a diferentes barbearias
+ * Funciona com subdomínios e domínios personalizados
  */
-export default function CustomerTenantGuard() {
-  const { user, profile, loading, signOut, fetchProfile } = useAuth();
-  const { establishmentId, loading: estLoading } = useEstablishment();
-  const navigate = useNavigate();
-  const { error: toastError } = useToast();
-  const bindingRef = useRef(false);
-  const mismatchHandledRef = useRef(false);
+export default function CustomerTenantGuard({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate()
+  const { profile } = useAuth()
+  const { establishment, loading, error } = useEstablishmentFromDomain()
 
   useEffect(() => {
-    if (loading || estLoading) return;
-    if (!user || !profile) return;
-    if (profile.profile_role !== 'CUSTOMER') return;
-    if (!establishmentId) return;
-
-    const pid = profile.establishment_id;
-
-    if (!pid) {
-      if (bindingRef.current) return;
-      bindingRef.current = true;
-      void (async () => {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ establishment_id: establishmentId })
-          .eq('id', user.id);
-        if (error) {
-          bindingRef.current = false;
-          if (import.meta.env.DEV) console.warn('[CustomerTenantGuard] bind establishment:', error);
-          return;
-        }
-        await fetchProfile(user.id);
-      })();
-      return;
+    // Se ainda está carregando, não faz nada
+    if (loading) {
+      return
     }
 
-    if (pid !== establishmentId) {
-      if (mismatchHandledRef.current) return;
-      mismatchHandledRef.current = true;
-      void (async () => {
-        await signOut();
-        toastError('Esta conta pertence a outra unidade. Entre pelo link ou site da sua loja.');
-        navigate('/auth', { replace: true });
-      })();
+    // Se houver erro, não faz nada
+    if (error) {
+      return
     }
-  }, [loading, estLoading, user, profile, establishmentId, signOut, navigate, toastError, fetchProfile]);
 
-  return null;
+    // Se não há estabelecimento, não faz nada
+    if (!establishment) {
+      return
+    }
+
+    // Se o usuário não está logado, permite acessar qualquer página
+    if (!profile) {
+      return
+    }
+
+    // Se o usuário já tem um establishment_id vinculado, não redireciona
+    if (profile.establishment_id) {
+      return
+    }
+
+    // Se o usuário é cliente e não tem establishment vinculado,
+    // redireciona para a página do tenant atual
+    if (profile.profile_role === 'CLIENT' && !profile.establishment_id) {
+      navigate('/tenant', { replace: true })
+    }
+  }, [establishment, loading, error, profile, navigate])
+
+  return <>{children}</>
 }
