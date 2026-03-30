@@ -22,7 +22,8 @@ export default function AgendarSlugPage() {
 
   const fetchEstablishment = async () => {
     try {
-      const { data, error } = await supabase
+      // Usar 'any' para contornar problemas de tipo com a tabela establishments
+      const { data, error } = await (supabase as any)
         .from('establishments')
         .select('*')
         .eq('slug', slug)
@@ -31,7 +32,7 @@ export default function AgendarSlugPage() {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          setError('Estabelecimento não encontrado')
+          setError('Esta barbearia ainda não foi configurada ou não existe')
         } else {
           setError('Erro ao carregar estabelecimento')
           console.error('Error fetching establishment:', error)
@@ -41,15 +42,15 @@ export default function AgendarSlugPage() {
       }
 
       if (!data) {
-        setError('Estabelecimento não encontrado')
+        setError('Esta barbearia ainda não foi configurada ou não existe')
         setLoading(false)
         return
       }
 
-      setEstablishment(data)
+      setEstablishment(data as Establishment)
       setLoading(false)
     } catch (err) {
-      setError('Erro ao carregar estabelecimento')
+      setError('Esta barbearia ainda não foi configurada ou não existe')
       console.error('Unexpected error:', err)
       setLoading(false)
     }
@@ -71,50 +72,50 @@ export default function AgendarSlugPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <div className="mb-4">
+              <Scissors className="w-16 h-16 text-red-600 mx-auto" />
+            </div>
             <h1 className="text-2xl font-bold text-red-800 mb-4">
-              Estabelecimento não encontrado
+              Barbearia Não Encontrada
             </h1>
             <p className="text-red-600 mb-6">
               {error}
             </p>
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600">
-                Possíveis motivos:
+            <div className="space-y-3 mb-6">
+              <p className="text-sm text-gray-600 font-medium">
+                O que pode ter acontecido:
               </p>
-              <ul className="text-sm text-gray-600 text-left space-y-1">
+              <ul className="text-sm text-gray-600 text-left space-y-2 bg-white p-4 rounded border">
                 <li>• O subdomínio foi digitado incorretamente</li>
+                <li>• A barbearia ainda não foi configurada</li>
                 <li>• A barbearia não está mais ativa</li>
                 <li>• O link expirou ou foi desativado</li>
               </ul>
             </div>
-            <button
-              onClick={() => window.location.href = 'https://synapses-ia.com.br'}
-              className="mt-6 w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Ir para página principal
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={() => window.location.href = 'https://synapses-ia.com.br'}
+                className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Ir para página principal
+              </button>
+              <button
+                onClick={() => window.history.back()}
+                className="w-full bg-gray-200 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Voltar para página anterior
+              </button>
+            </div>
           </div>
         </div>
       </div>
     )
   }
 
+  // Se não há erro e não está carregando, establishment deve existir
   if (!establishment) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">
-            Estabelecimento não encontrado
-          </h1>
-          <button
-            onClick={() => window.location.href = 'https://synapses-ia.com.br'}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Ir para página principal
-          </button>
-        </div>
-      </div>
-    )
+    setError('Esta barbearia ainda não foi configurada ou não existe')
+    return null
   }
 
   return (
@@ -150,35 +151,25 @@ export default function AgendarSlugPage() {
               <h2 className="text-lg font-semibold mb-4">Informações</h2>
               
               <div className="space-y-4">
-                {establishment.address && (
-                  <div className="flex items-start gap-3">
-                    <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Endereço</p>
-                      <p className="text-sm text-gray-600">{establishment.address}</p>
-                    </div>
-                  </div>
-                )}
-
-                {establishment.phone && (
-                  <div className="flex items-start gap-3">
-                    <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Telefone</p>
-                      <p className="text-sm text-gray-600">{establishment.phone}</p>
-                    </div>
-                  </div>
-                )}
-
                 <div className="flex items-start gap-3">
                   <Clock className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Funcionamento</p>
+                    <p className="text-sm font-medium text-gray-900">Status</p>
                     <p className="text-sm text-gray-600">
-                      {establishment.opening_hours || 'Horário a definir'}
+                      {establishment.status ? 'Ativa' : 'Inativa'}
                     </p>
                   </div>
                 </div>
+
+                {establishment.whatsapp_sender_phone && (
+                  <div className="flex items-start gap-3">
+                    <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">WhatsApp</p>
+                      <p className="text-sm text-gray-600">{establishment.whatsapp_sender_phone}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -207,10 +198,8 @@ export default function AgendarSlugPage() {
                 Bem-vindo à {establishment.name}
               </h2>
               <p className="text-gray-600 mb-6">
-                {establishment.description || 
-                 'Profissionais qualificados e prontos para deixar seu visual em dia. ' +
-                 'Agende seu horário e desfrute de um atendimento de qualidade.'
-                }
+                Profissionais qualificados e prontos para deixar seu visual em dia. 
+                Agende seu horário e desfrute de um atendimento de qualidade.
               </p>
 
               {/* Features */}
