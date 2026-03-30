@@ -23,7 +23,7 @@ export default function DomainGuard({ children }: DomainGuardProps) {
     try {
       const hostname = window.location.hostname
       
-      // Se for domínio principal ou localhost, permite
+      // Se for domínio principal ou localhost, permite sem validação
       if (hostname === 'synapses-ia.com.br' || 
           hostname === 'www.synapses-ia.com.br' ||
           hostname === 'localhost:3000' ||

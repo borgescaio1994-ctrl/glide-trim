@@ -7,6 +7,7 @@ import PhoneVerificationGuard from '@/components/PhoneVerificationGuard';
 import CustomerTenantGuard from '@/components/CustomerTenantGuard';
 import SlugValidator from '@/components/SlugValidator';
 import DomainGuard from '@/components/DomainGuard';
+import DomainRouter from '@/components/DomainRouter';
 import Layout from '@/components/Layout';
 import ScrollAndReloadSync from '@/components/ScrollAndReloadSync';
 import AuthBootstrapGate from '@/components/AuthBootstrapGate';
@@ -27,6 +28,7 @@ const VerifyPhone = lazy(() => import('@/pages/VerifyPhone'));
 const AssinaturaPendente = lazy(() => import('@/pages/AssinaturaPendente'));
 const BarberPanel = lazy(() => import('@/pages/BarberPanel'));
 const TenantPage = lazy(() => import('@/pages/TenantPage'));
+const SynapsesLanding = lazy(() => import('@/pages/SynapsesLanding'));
 const AgendarSlugPage = lazy(() => import('@/pages/agendar/[slug]/index'));
 const NotFound404 = lazy(() => import('@/pages/NotFound404'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
@@ -58,7 +60,7 @@ export default function App() {
             <Layout>
               <Suspense fallback={<PageFallback />}>
               <Routes>
-              <Route path="/" element={<Index />} />
+              <Route path="/" element={<DomainRouter />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/services" element={<Services />} />
