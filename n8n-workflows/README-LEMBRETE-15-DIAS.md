@@ -52,7 +52,7 @@ Menu n8n → **Import from File** → `lembrete-15-dias.json` → **ative** o wo
 2. Preencha **`$telefoneComDDD`** (seu número), **`$apikeyEvolution`** (mesma chave do n8n) e, se precisar, **`$instancia`**.
 3. No PowerShell, na pasta do projeto:
    ```powershell
-   cd c:\Users\lenovo\Desktop\projetodevbarberpro\glide-trim\n8n-workflows
+   cd c:\Users\lenovo\Desktop\PROJETOS\BOOKNOW\n8n-workflows
    .\testar-lembrete-15-dias.ps1
    ```
 4. Opcional — só ver quem a Edge retornaria hoje (janela 14–16 dias), **sem enviar** WhatsApp:

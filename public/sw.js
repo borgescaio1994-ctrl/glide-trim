@@ -5,7 +5,9 @@
  * - Precache só do manifest (ícone/logo não entra no precache para evitar ícone antigo preso no cache).
  */
 const CACHE_STATIC = 'booknow-v12-static';
-const PRECACHE_URLS = ['/manifest.webmanifest'];
+// Manifest na mesma base que o SW (raiz do domínio quando Vite base é /)
+const swDir = self.location.pathname.replace(/\/[^/]+$/, '');
+const PRECACHE_URLS = [swDir ? `${swDir}/manifest.webmanifest` : '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

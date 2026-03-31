@@ -831,18 +831,15 @@ export default function SuperAdminCRM() {
             <Input
               value={newUnit.establishment_domain}
               onChange={(e) => setNewUnit((p) => ({ ...p, establishment_domain: e.target.value }))}
-              placeholder="ex: minhaloja.duckdns.org"
+              placeholder="ex: barbearia.seudominio.com"
             />
             <div className="text-xs text-muted-foreground space-y-1">
               <p>
-                <strong>Um domínio por loja:</strong> crie o nome no DuckDNS (ex.{' '}
-                <code className="text-[11px] rounded bg-muted px-1 py-0.5">minhaloja.duckdns.org</code>
-                ), aponte o <strong>A</strong> para o IP do servidor e use o <strong>mesmo</strong> valor aqui.
+                <strong>Um domínio por loja:</strong> configure o DNS (registo <strong>A</strong> ou <strong>CNAME</strong>)
+                para o IP do servidor e use o <strong>mesmo</strong> hostname aqui, sem <code className="text-[11px]">https://</code>.
               </p>
               <p>
-                Depois, no servidor, atualize o HTTPS com{' '}
-                <code className="text-[11px]">scripts/ssl-duckdns/obter-certificado.sh</code> (ou cron). Veja{' '}
-                <code className="text-[11px]">docs/HTTPS-DUCKDNS-AUTOMATICO.md</code>.
+                No servidor, emita ou renove o certificado HTTPS (ex.: Certbot) para esse hostname.
               </p>
             </div>
           </div>

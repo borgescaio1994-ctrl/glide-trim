@@ -3,6 +3,11 @@ import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchEstablishment } from '@/api/establishment';
 import { queryKeys } from '@/lib/queryKeys';
+import {
+  getTenantSlugFromSynapseHostname,
+  isSynapseAgencyMainDomain,
+  isCustomDomainHostname,
+} from '@/lib/tenantHostname';
 import type { Establishment } from '@/types/establishment';
 
 export type { Establishment } from '@/types/establishment';
@@ -32,11 +37,8 @@ export function getSlugFromHostOrPath(): string | null {
     return null;
   }
 
-  const parts = hostname.split('.');
-  if (parts.length >= 2 && parts[0] && parts[0] !== 'www' && parts[0] !== 'app') {
-    const slug = parts[0];
-    if (slug.length > 1 && /^[a-z0-9-]+$/.test(slug)) return slug;
-  }
+  const fromSynapse = getTenantSlugFromSynapseHostname(hostname);
+  if (fromSynapse) return fromSynapse;
 
   if (import.meta.env.DEV) {
     const envSlug = import.meta.env.VITE_DEFAULT_ESTABLISHMENT_SLUG;
@@ -53,13 +55,36 @@ export function useEstablishment() {
     typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
   const slugFromHost = useMemo(() => getSlugFromHostOrPath(), [location.pathname]);
 
+  const isAgencyMainDomain = useMemo(() => isSynapseAgencyMainDomain(hostname), [hostname]);
+
   const estQuery = useQuery({
     queryKey: queryKeys.establishment(hostname, slugFromHost),
     queryFn: () => fetchEstablishment(slugFromHost),
+    enabled: !isAgencyMainDomain,
   });
 
   const establishment: Establishment | null = estQuery.data?.establishment ?? null;
   const slug = establishment?.slug ?? estQuery.data?.resolvedSlug ?? slugFromHost;
+
+  const synapseSlug = useMemo(() => getTenantSlugFromSynapseHostname(hostname), [hostname]);
+
+  /** Hostname exige loja no Supabase (subdomínio synapses ou domínio próprio), mas não encontrou registo ativo. */
+  const invalidTenantHostname = useMemo(() => {
+    if (isAgencyMainDomain) return false;
+    if (!estQuery.isSuccess) return false;
+    if (establishment) return false;
+    return synapseSlug !== null || isCustomDomainHostname(hostname);
+  }, [
+    isAgencyMainDomain,
+    estQuery.isSuccess,
+    establishment,
+    synapseSlug,
+    hostname,
+  ]);
+
+  const establishmentLoading = !isAgencyMainDomain && estQuery.isPending;
+
+  const establishmentFetchError = !isAgencyMainDomain && estQuery.isError;
 
   const refetch = useCallback(() => {
     return queryClient.invalidateQueries({
@@ -73,6 +98,10 @@ export function useEstablishment() {
     establishmentId: establishment?.id ?? null,
     slug,
     loading: estQuery.isPending,
+    establishmentLoading,
+    establishmentFetchError,
+    isAgencyMainDomain,
+    invalidTenantHostname,
     refetch,
     getSlugFromHostOrPath,
   };

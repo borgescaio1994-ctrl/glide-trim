@@ -30,7 +30,7 @@ if (-not (Test-Path $DistPath)) {
 }
 
 Write-Host "`n=== Enviando para $User@${HostName}:$RemotePath ===" -ForegroundColor Cyan
-$TempDir = "/tmp/glide-trim-deploy-" + (Get-Date -Format "yyyyMMddHHmmss")
+$TempDir = "/tmp/booknow-deploy-" + (Get-Date -Format "yyyyMMddHHmmss")
 # Criar pasta temporária no servidor
 & ssh -i $SshKey @SshCommonArgs "${User}@${HostName}" "mkdir -p $TempDir"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

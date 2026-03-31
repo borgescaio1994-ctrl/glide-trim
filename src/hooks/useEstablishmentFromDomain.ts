@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../integrations/supabase/client'
 import type { Establishment } from '../types/establishment'
+import { getTenantSlugFromSynapseHostname, isCustomDomainHostname } from '../lib/tenantHostname'
 
 /**
  * Hook para detectar o estabelecimento atual baseado no domínio/subdomínio
@@ -17,22 +18,16 @@ export function useEstablishmentFromDomain() {
     const detectEstablishment = async () => {
       try {
         const hostname = window.location.hostname
-        const isCustomDomain = !hostname.endsWith('.synapses-ia.com.br') && hostname !== 'synapses-ia.com.br'
-        
+        const isCustomDomain = isCustomDomainHostname(hostname)
+
         let identifier: string | null = null
 
         if (isCustomDomain) {
-          // Domínio personalizado: busca pelo custom_domain
-          identifier = hostname
+          // Domínio personalizado: busca pelo custom_domain (host sem path)
+          identifier = hostname.toLowerCase()
         } else {
-          // Subdomínio: extrai o slug do subdomínio
-          const parts = hostname.split('.')
-          if (parts.length > 2) {
-            const subdomain = parts[0]
-            if (subdomain && subdomain !== 'www') {
-              identifier = subdomain
-            }
-          }
+          // Subdomínio tenant: primeiro rótulo (ex.: barbearia-stoffels.synapses-ia.com.br)
+          identifier = getTenantSlugFromSynapseHostname(hostname)
         }
 
         if (!identifier) {
@@ -82,6 +77,6 @@ export function useEstablishmentFromDomain() {
     establishment,
     loading,
     error,
-    isCustomDomain: !window.location.hostname.endsWith('.synapses-ia.com.br') && window.location.hostname !== 'synapses-ia.com.br'
+    isCustomDomain: isCustomDomainHostname(window.location.hostname),
   }
 }

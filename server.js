@@ -24,7 +24,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files from dist
+// Serve static files from dist (raiz do site)
 app.use(express.static(path.join(__dirname, "dist"), {
   index: "index.html",
   maxAge: "1y",
@@ -69,7 +69,6 @@ app.get("/auth/callback", (req, res) => {
 
 // SPA fallback - serve index.html for all non-API routes
 app.use((req, res, next) => {
-  // Don't interfere with API routes
   if (!req.path.startsWith("/api") && req.method === "GET") {
     sendSpaIndex(res);
   } else {

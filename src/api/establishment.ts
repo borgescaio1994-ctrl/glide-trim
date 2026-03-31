@@ -47,14 +47,15 @@ export async function fetchEstablishment(slugOrId: string | null): Promise<Estab
   }
 
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId);
-  const { data, error } = await supabase
+  // Usar .eq() em vez de .or('slug.eq....'): slugs com hífen quebram o parser do PostgREST na string .or().
+  let bySlugOrId = supabase
     .from('establishments')
     .select(
       'id, name, slug, home_title, logo_url, primary_color, custom_domain, status, whatsapp_sender_phone, ui_theme'
     )
-    .eq('status', true)
-    .or(isUuid ? `id.eq.${slugOrId}` : `slug.eq.${slugOrId}`)
-    .maybeSingle();
+    .eq('status', true);
+  bySlugOrId = isUuid ? bySlugOrId.eq('id', slugOrId) : bySlugOrId.eq('slug', slugOrId);
+  const { data, error } = await bySlugOrId.maybeSingle();
 
   if (error || !data) {
     return { establishment: null, resolvedSlug: slugOrId };
