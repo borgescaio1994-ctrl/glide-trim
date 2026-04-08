@@ -73,4 +73,35 @@ $CmdLine = $Commands -join " && "
 & ssh -i $SshKey @SshCommonArgs "${User}@${HostName}" $CmdLine
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+# Purga opcional da cache Cloudflare (resolve "funciona no IP, não no domínio" quando o domínio usa proxy laranja).
+# No painel Cloudflare: Zone Overview → copiar Zone ID. My Profile → API Tokens → criar token com permissão "Cache Purge".
+# No PowerShell (antes do deploy) ou variáveis de ambiente do Windows:
+#   $env:CLOUDFLARE_ZONE_ID = "..."
+#   $env:CLOUDFLARE_API_TOKEN = "..."
+$cfZone = $env:CLOUDFLARE_ZONE_ID
+$cfTok = $env:CLOUDFLARE_API_TOKEN
+if ($cfZone -and $cfTok) {
+    Write-Host "`n=== Purga cache Cloudflare (zona $cfZone) ===" -ForegroundColor Cyan
+    try {
+        $cfHeaders = @{
+            "Authorization" = "Bearer $cfTok"
+            "Content-Type"  = "application/json"
+        }
+        $cfBody = '{"purge_everything":true}'
+        $cfUri = "https://api.cloudflare.com/client/v4/zones/$cfZone/purge_cache"
+        $cfResp = Invoke-RestMethod -Method Post -Uri $cfUri -Headers $cfHeaders -Body $cfBody -ErrorAction Stop
+        if ($cfResp.success) {
+            Write-Host "Cloudflare: cache purgada com sucesso." -ForegroundColor Green
+        } else {
+            Write-Host "Cloudflare: resposta inesperada." -ForegroundColor Yellow
+            Write-Host ($cfResp | ConvertTo-Json -Compress) -ForegroundColor Gray
+        }
+    } catch {
+        Write-Host "Cloudflare: falha na purga (deploy no servidor já está feito). $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "`nDica: se o domínio ainda mostrar versão antiga e o IP estiver certo, purgue a cache no Cloudflare" -ForegroundColor DarkGray
+    Write-Host "      ou defina CLOUDFLARE_ZONE_ID e CLOUDFLARE_API_TOKEN para purgar automaticamente no próximo deploy." -ForegroundColor DarkGray
+}
+
 Write-Host "`nDeploy concluido: http://${HostName}/" -ForegroundColor Green
