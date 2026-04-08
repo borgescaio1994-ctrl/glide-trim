@@ -265,6 +265,7 @@ export type Database = {
           updated_at: string | null
           verification_code: string | null
           whatsapp_number: string | null
+          visible_on_client_home: boolean
         }
         Insert: {
           avatar_url?: string | null
@@ -280,6 +281,7 @@ export type Database = {
           updated_at?: string | null
           verification_code?: string | null
           whatsapp_number?: string | null
+          visible_on_client_home?: boolean
         }
         Update: {
           avatar_url?: string | null
@@ -295,6 +297,7 @@ export type Database = {
           updated_at?: string | null
           verification_code?: string | null
           whatsapp_number?: string | null
+          visible_on_client_home?: boolean
         }
         Relationships: []
       }

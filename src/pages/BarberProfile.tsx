@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Scissors, Clock, DollarSign, ChevronRight, Calendar, Image, Camera } from 'lucide-react';
@@ -12,6 +12,9 @@ interface Barber {
   email: string;
   phone: string | null;
   avatar_url: string | null;
+  establishment_id?: string | null;
+  visible_on_client_home?: boolean | null;
+  profile_role?: string;
 }
 
 interface Service {
@@ -71,25 +74,35 @@ export default function BarberProfile() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (barberId) {
-      fetchData();
-    }
-  }, [barberId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setWhatsappUrl(null);
     try {
-      // Fetch barber profile
-      const { data: barberData } = await supabase
+      const { data: barberData, error: barberErr } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', barberId)
-        .single();
+        .maybeSingle();
 
-      if (barberData) {
-        setBarber(barberData);
+      if (barberErr || !barberData) {
+        navigate('/', { replace: true });
+        return;
       }
+
+      const visible = barberData.visible_on_client_home !== false;
+      const estId = barberData.establishment_id as string | null | undefined;
+      const isStaff =
+        !!profile &&
+        (profile.profile_role === 'SUPER_ADMIN' ||
+          (!!estId &&
+            profile.establishment_id === estId &&
+            (profile.profile_role === 'ADMIN_BARBER' || profile.profile_role === 'BARBER')));
+
+      if (!visible && !isStaff) {
+        navigate('/', { replace: true });
+        return;
+      }
+
+      setBarber(barberData as Barber);
 
       // Fetch services
       const { data: servicesData } = await supabase
@@ -129,7 +142,13 @@ export default function BarberProfile() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [barberId, navigate, profile]);
+
+  useEffect(() => {
+    if (barberId) {
+      void fetchData();
+    }
+  }, [barberId, fetchData]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {

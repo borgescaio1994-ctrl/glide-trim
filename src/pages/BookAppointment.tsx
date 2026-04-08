@@ -28,6 +28,7 @@ export default function BookAppointment() {
   const [isBookingInProgress, setIsBookingInProgress] = useState(false);
   const [isMaintenance, setIsMaintenance] = useState(false);
   const [establishmentId, setEstablishmentId] = useState<string | null>(null);
+  const [clientBookingBlocked, setClientBookingBlocked] = useState(false);
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -38,25 +39,44 @@ export default function BookAppointment() {
       }
 
       try {
-        // Carregar dados do profissional
-        const { data: barber } = await supabase
+        const { data: barber, error: barberFetchErr } = await supabase
           .from('profiles')
-          .select('full_name, establishment_id')
+          .select('full_name, establishment_id, visible_on_client_home, profile_role')
           .eq('id', barberId)
-          .single();
-        
-        if (barber) {
-          setBarberName(barber.full_name);
-          if (barber.establishment_id) {
-            setEstablishmentId(barber.establishment_id);
-            const { data: estData } = await supabase
-              .from('establishments')
-              .select('subscription_status')
-              .eq('id', barber.establishment_id)
-              .maybeSingle();
+          .maybeSingle();
 
-            setIsMaintenance(estData?.subscription_status === false);
-          }
+        if (barberFetchErr || !barber) {
+          setClientBookingBlocked(true);
+          setLoading(false);
+          return;
+        }
+
+        const visible = (barber as { visible_on_client_home?: boolean }).visible_on_client_home !== false;
+        const estId = barber.establishment_id as string | null;
+        const isStaff =
+          !!profile &&
+          (profile.profile_role === 'SUPER_ADMIN' ||
+            (!!estId &&
+              profile.establishment_id === estId &&
+              (profile.profile_role === 'ADMIN_BARBER' || profile.profile_role === 'BARBER')));
+
+        if (!visible && !isStaff) {
+          setClientBookingBlocked(true);
+          setLoading(false);
+          return;
+        }
+
+        setClientBookingBlocked(false);
+        setBarberName(barber.full_name);
+        if (estId) {
+          setEstablishmentId(estId);
+          const { data: estData } = await supabase
+            .from('establishments')
+            .select('subscription_status')
+            .eq('id', estId)
+            .maybeSingle();
+
+          setIsMaintenance(estData?.subscription_status === false);
         }
 
         // Carregar serviço
@@ -95,7 +115,7 @@ export default function BookAppointment() {
     };
 
     loadData();
-  }, [barberId, serviceId]);
+  }, [barberId, serviceId, profile?.id, profile?.profile_role, profile?.establishment_id]);
 
   // Verificar se uma data tem horários disponíveis
   const checkAvailableSlots = (date: Date): boolean => {
@@ -217,6 +237,10 @@ export default function BookAppointment() {
   // Confirmar agendamento
   const handleBook = async () => {
     if (!user || !selectedDate || !selectedTime || !service || isBookingInProgress) return;
+    if (clientBookingBlocked) {
+      showError('Este profissional não está disponível para agendamento.');
+      return;
+    }
     if (isMaintenance) {
       showError('Sistema em Manutenção');
       return;
@@ -330,6 +354,19 @@ export default function BookAppointment() {
           <Loader2 className="animate-spin text-primary w-8 h-8 mb-4" />
           <p className="text-muted-foreground">Carregando...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (clientBookingBlocked) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 px-6">
+        <p className="text-center text-muted-foreground max-w-md">
+          Este profissional não está disponível para agendamento online no momento.
+        </p>
+        <Button type="button" variant="outline" onClick={() => navigate('/')}>
+          Voltar ao início
+        </Button>
       </div>
     );
   }

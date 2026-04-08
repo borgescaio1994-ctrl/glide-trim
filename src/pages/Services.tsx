@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,9 +10,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/contexts/ToastContext';
 import { Plus, Scissors, Clock, DollarSign, Trash2, Edit2, ArrowLeft, X, Loader2 } from 'lucide-react';
+import { isOwnerAdminBarberToolsDisabled } from '@/lib/ownerAdminBarberMode';
 
 export default function Services() {
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const { success, error: showError } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -37,6 +38,13 @@ export default function Services() {
   });
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (isOwnerAdminBarberToolsDisabled(profile)) {
+      navigate('/admin', { replace: true });
+    }
+  }, [authLoading, profile, navigate]);
 
   const invalidateServices = () =>
     queryClient.invalidateQueries({

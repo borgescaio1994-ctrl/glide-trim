@@ -13,4 +13,6 @@ export interface Profile {
   phone_number?: string | null;
   whatsapp_number?: string | null;
   phone_verified?: boolean | null;
+  /** false = não aparece na vitrine do cliente / dono só como admin */
+  visible_on_client_home?: boolean | null;
 }

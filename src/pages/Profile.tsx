@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/contexts/ToastContext';
-import { Camera, Upload, LogOut, Check, Settings, Calendar, Image, Crown, User, Mail, Phone, AlertCircle, Clock, CheckCircle, Edit, RefreshCw, Loader2, Trash2 } from 'lucide-react';
+import { Camera, Upload, LogOut, Check, Settings, Calendar, Image, Crown, User, Mail, Phone, AlertCircle, Clock, CheckCircle, Edit, RefreshCw, Loader2, Trash2, Lock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function Profile() {
@@ -21,6 +22,10 @@ export default function Profile() {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -181,6 +186,47 @@ export default function Profile() {
       showError('Erro ao salvar telefone');
     } finally {
       setUpdatingPhone(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!user?.email) {
+      showError('Conta sem e-mail: alteração de senha não disponível neste fluxo.');
+      return;
+    }
+    if (!currentPassword || !newPassword) {
+      showError('Preencha a senha atual e a nova senha');
+      return;
+    }
+    if (newPassword.length < 6) {
+      showError('A nova senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showError('A confirmação da nova senha não confere');
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const { error: reauthErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (reauthErr) {
+        showError('Senha atual incorreta');
+        return;
+      }
+      const { error: updErr } = await supabase.auth.updateUser({ password: newPassword });
+      if (updErr) throw updErr;
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      success('Senha alterada com sucesso');
+    } catch (e) {
+      console.error(e);
+      showError(e instanceof Error ? e.message : 'Erro ao alterar senha');
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -465,6 +511,56 @@ export default function Profile() {
                 </>
               )
             )}
+          </div>
+        </div>
+
+        {/* Senha de login */}
+        <div className="bg-card rounded-xl p-6 shadow-sm space-y-4">
+          <div className="flex items-center gap-2">
+            <Lock className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-semibold">Alterar senha de login</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Informe a senha atual e escolha uma nova senha. Ela vale para o próximo acesso no app.
+          </p>
+          <div className="space-y-3 max-w-md">
+            <div>
+              <Label htmlFor="current-password">Senha atual</Label>
+              <Input
+                id="current-password"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="new-password">Nova senha</Label>
+              <Input
+                id="new-password"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="confirm-password">Confirmar nova senha</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <Button onClick={handleChangePassword} disabled={savingPassword} className="w-full sm:w-auto">
+              {savingPassword ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Salvar nova senha
+            </Button>
           </div>
         </div>
 

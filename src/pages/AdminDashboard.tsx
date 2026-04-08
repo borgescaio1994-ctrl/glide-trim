@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/contexts/ToastContext';
 import { SimpleModal } from '@/components/ui/SimpleModal';
 import HomeSettingsEditor from '@/components/admin/HomeSettingsEditor';
@@ -34,6 +35,8 @@ interface Barber {
   email: string;
   avatar_url: string | null;
   created_at: string;
+  profile_role?: string;
+  visible_on_client_home?: boolean | null;
 }
 
 interface RegisteredBarber {
@@ -59,7 +62,7 @@ interface BarberStats {
 }
 
 export default function AdminDashboard() {
-  const { profile, user, isAdmin, isSuperAdmin, loading: authLoading } = useAuth();
+  const { profile, user, isAdmin, isSuperAdmin, loading: authLoading, fetchProfile } = useAuth();
   const { success, error: showError } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -86,6 +89,7 @@ export default function AdminDashboard() {
   const [reportBarber, setReportBarber] = useState<string>('all');
   const [reportStartDate, setReportStartDate] = useState<string>('');
   const [reportEndDate, setReportEndDate] = useState<string>('');
+  const [togglingVisibility, setTogglingVisibility] = useState<string | null>(null);
 
   const isAdminBarber = profile?.profile_role === 'ADMIN_BARBER';
   const establishmentIdFilter = isAdminBarber ? profile?.establishment_id ?? null : null;
@@ -435,7 +439,37 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleToggleClientVisibility = async (barberId: string, visible: boolean) => {
+    setTogglingVisibility(barberId);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ visible_on_client_home: visible })
+        .eq('id', barberId);
+      if (error) throw error;
+      if (barberId === user?.id) await fetchProfile(user.id);
+      success(
+        visible
+          ? 'Profissional visível na página inicial para os clientes.'
+          : 'Profissional oculto: clientes não veem nem agendam por aqui até reativar.'
+      );
+      await fetchBarbers();
+    } catch (e) {
+      console.error(e);
+      showError(e instanceof Error ? e.message : 'Não foi possível atualizar a visibilidade');
+    } finally {
+      setTogglingVisibility(null);
+    }
+  };
+
   const handleDeleteBarber = async (barberId: string) => {
+    if (barberId === user?.id) {
+      showError(
+        'Você não pode excluir seu próprio usuário. Somente o super administrador pode fazer isso.'
+      );
+      return;
+    }
+
     setDeletingBarber(barberId);
 
     try {
@@ -870,59 +904,101 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* Profissionais ativos */}
+      {/* Equipe */}
       <div className="px-5 pb-8">
-        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
           <Users className="w-5 h-5 text-primary" />
-          Profissionais ativos
+          Equipe
         </h2>
+        <p className="text-xs text-muted-foreground mb-4">
+          Use o interruptor para mostrar ou ocultar o profissional na página inicial dos clientes. Dono: desative se for
+          apenas administrador, sem atender como barbeiro na vitrine.
+        </p>
 
         {barbers.length === 0 ? (
           <div className="bg-card rounded-2xl p-6 border border-border/50 text-center">
             <Users className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-            <p className="text-muted-foreground">Nenhum profissional ativo</p>
+            <p className="text-muted-foreground">Nenhum profissional cadastrado</p>
             <p className="text-xs text-muted-foreground mt-1">Cadastre um email acima e peça para o profissional fazer login</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {barbers.map((barber) => (
-              <div 
-                key={barber.id} 
-                className="bg-card rounded-2xl p-4 border border-border/50 flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                    {barber.avatar_url ? (
-                      <img 
-                        src={barber.avatar_url} 
-                        alt={barber.full_name}
-                        className="w-full h-full object-cover rounded-xl"
-                      />
-                    ) : (
-                      <Scissors className="w-5 h-5 text-primary" />
-                    )}
+            {barbers.map((barber) => {
+              const visible = barber.visible_on_client_home !== false;
+              const isSelf = barber.id === user?.id;
+              return (
+                <div
+                  key={barber.id}
+                  className="bg-card rounded-2xl p-4 border border-border/50 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      {barber.avatar_url ? (
+                        <img
+                          src={barber.avatar_url}
+                          alt={barber.full_name}
+                          className="w-full h-full object-cover rounded-xl"
+                        />
+                      ) : (
+                        <Scissors className="w-5 h-5 text-primary" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-medium text-foreground truncate">{barber.full_name}</h3>
+                      <p className="text-sm text-muted-foreground truncate">{barber.email}</p>
+                      {barber.profile_role === 'ADMIN_BARBER' && (
+                        <p className="text-xs text-amber-600/90 mt-0.5">Dono da loja</p>
+                      )}
+                      {!visible && (
+                        <p className="text-xs text-muted-foreground mt-1">Oculto na vitrine (offline para clientes)</p>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-medium text-foreground">{barber.full_name}</h3>
-                    <p className="text-sm text-muted-foreground">{barber.email}</p>
+
+                  <div className="flex items-center gap-4 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id={`visible-${barber.id}`}
+                        checked={visible}
+                        disabled={togglingVisibility === barber.id}
+                        onCheckedChange={(v) => handleToggleClientVisibility(barber.id, v)}
+                      />
+                      <Label htmlFor={`visible-${barber.id}`} className="text-sm text-muted-foreground cursor-pointer">
+                        Na vitrine
+                      </Label>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:bg-destructive/10"
+                      title={
+                        isSelf
+                          ? 'Você não pode excluir seu próprio usuário'
+                          : 'Remover profissional'
+                      }
+                      onClick={() => {
+                        if (isSelf) {
+                          showError(
+                            'Você não pode excluir seu próprio usuário. Somente o super administrador pode fazer isso.'
+                          );
+                          return;
+                        }
+                        if (
+                          confirm(
+                            `Remover permanentemente o profissional ${barber.full_name} e todos os seus dados?`
+                          )
+                        ) {
+                          handleDeleteBarber(barber.id);
+                        }
+                      }}
+                      disabled={deletingBarber === barber.id || isSelf}
+                    >
+                      {deletingBarber === barber.id ? '...' : <Trash2 className="w-5 h-5" />}
+                    </Button>
                   </div>
                 </div>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive hover:bg-destructive/10"
-                  onClick={() => {
-                    if (confirm(`Remover permanentemente o profissional ${barber.full_name} e todos os seus dados?`)) {
-                      handleDeleteBarber(barber.id);
-                    }
-                  }}
-                  disabled={deletingBarber === barber.id}
-                >
-                  {deletingBarber === barber.id ? '...' : <Trash2 className="w-5 h-5" />}
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

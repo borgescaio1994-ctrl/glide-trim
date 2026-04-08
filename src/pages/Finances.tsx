@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
@@ -7,11 +7,19 @@ import { queryKeys } from '@/lib/queryKeys';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ArrowLeft, DollarSign, TrendingUp, Users } from 'lucide-react';
+import { isOwnerAdminBarberToolsDisabled } from '@/lib/ownerAdminBarberMode';
 
 export default function Finances() {
   const { profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [period, setPeriod] = useState<'week' | 'month'>('week');
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (isOwnerAdminBarberToolsDisabled(profile)) {
+      navigate('/admin', { replace: true });
+    }
+  }, [authLoading, profile, navigate]);
 
   const financesQuery = useQuery({
     queryKey: queryKeys.finances(profile?.id, period),

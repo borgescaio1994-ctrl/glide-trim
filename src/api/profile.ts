@@ -19,6 +19,8 @@ export function mapRowToProfile(data: Record<string, unknown>): Profile {
     phone_number: (data.phone_number as string | null | undefined) ?? null,
     whatsapp_number: (data.whatsapp_number as string | null | undefined) ?? null,
     phone_verified: (data.phone_verified as boolean | null | undefined) ?? null,
+    visible_on_client_home:
+      (data.visible_on_client_home as boolean | null | undefined) === false ? false : true,
   };
 }
 

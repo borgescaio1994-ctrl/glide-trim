@@ -122,6 +122,7 @@ serve(async (req: Request): Promise<Response> => {
         phone: finalPhone,
         phone_number: finalPhone,
         is_verified: true,
+        visible_on_client_home: true,
       })
       .eq("id", newUserId);
 

@@ -36,7 +36,8 @@ export async function fetchClientHomePage(establishmentId: string): Promise<{
   let query = supabase
     .from('profiles')
     .select('id, full_name, avatar_url')
-    .in('profile_role', ['BARBER', 'ADMIN_BARBER'] as string[]);
+    .in('profile_role', ['BARBER', 'ADMIN_BARBER'] as string[])
+    .eq('visible_on_client_home', true);
   if (superadminEmail) query = query.neq('email', superadminEmail);
   query = query.eq('establishment_id', establishmentId);
   const { data: barbersData, error: queryErr } = await query;

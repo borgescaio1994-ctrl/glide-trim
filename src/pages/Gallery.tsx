@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/contexts/ToastContext';
 import { ArrowLeft, Plus, Trash2, Image, Loader2 } from 'lucide-react';
+import { isOwnerAdminBarberToolsDisabled } from '@/lib/ownerAdminBarberMode';
 
 interface GalleryImage {
   id: string;
@@ -18,7 +19,7 @@ interface GalleryImage {
 
 export default function Gallery() {
   const navigate = useNavigate();
-  const { profile, user } = useAuth();
+  const { profile, user, loading: authLoading } = useAuth();
   const { establishmentDisplayName } = useEstablishment();
   const { success, error: showError } = useToast();
   const [images, setImages] = useState<GalleryImage[]>([]);
@@ -49,6 +50,13 @@ export default function Gallery() {
       fetchGallery();
     }
   }, [user, fetchGallery]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (isOwnerAdminBarberToolsDisabled(profile)) {
+      navigate('/admin', { replace: true });
+    }
+  }, [authLoading, profile, navigate]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;

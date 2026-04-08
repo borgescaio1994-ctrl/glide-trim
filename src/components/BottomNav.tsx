@@ -32,6 +32,12 @@ const adminBarberNavItems = [
   { icon: User, label: 'Perfil', path: '/profile' },
 ];
 
+// Dono que não atua como barbeiro na vitrine: só painel + perfil
+const adminBarberNavItemsAdminOnly = [
+  { icon: Crown, label: 'Painel', path: '/admin' },
+  { icon: User, label: 'Perfil', path: '/profile' },
+];
+
 export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -42,14 +48,19 @@ export default function BottomNav() {
     profile?.profile_role === 'ADMIN_BARBER' ||
     profile?.role === 'barber';
 
+  const ownerAdminNoBarberVitrine =
+    profile?.profile_role === 'ADMIN_BARBER' && profile.visible_on_client_home === false;
+
   const navItems =
     isSuperAdmin
       ? superAdminNavItems
-      : profile?.profile_role === 'ADMIN_BARBER'
-        ? adminBarberNavItems
-        : isBarberLike
-          ? barberNavItems
-          : clientNavItems;
+      : ownerAdminNoBarberVitrine
+        ? adminBarberNavItemsAdminOnly
+        : profile?.profile_role === 'ADMIN_BARBER'
+          ? adminBarberNavItems
+          : isBarberLike
+            ? barberNavItems
+            : clientNavItems;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border/50 safe-area-inset-bottom">

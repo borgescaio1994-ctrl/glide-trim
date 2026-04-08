@@ -33,8 +33,15 @@ export default function Index() {
     }
     if (profile?.profile_role === 'BARBER') {
       navigate('/barber', { replace: true });
+      return;
     }
-  }, [profile?.profile_role, loading, navigate, location.pathname]);
+    if (
+      profile?.profile_role === 'ADMIN_BARBER' &&
+      profile.visible_on_client_home === false
+    ) {
+      navigate('/admin', { replace: true });
+    }
+  }, [profile?.profile_role, profile?.visible_on_client_home, loading, navigate, location.pathname]);
 
   const bootScreen = (
     <div className="min-h-screen flex flex-col items-center justify-center gap-5 bg-background px-6">
@@ -54,6 +61,13 @@ export default function Index() {
   }
 
   if (profile?.profile_role === 'BARBER') {
+    return bootScreen;
+  }
+
+  if (
+    profile?.profile_role === 'ADMIN_BARBER' &&
+    profile.visible_on_client_home === false
+  ) {
     return bootScreen;
   }
 
@@ -77,7 +91,10 @@ export default function Index() {
 
   // Domínio principal da agência → landing (visitantes e clientes sem papel de loja aqui)
   if (isAgencyMainDomain) {
-    if (profile?.profile_role === 'ADMIN_BARBER') {
+    if (
+      profile?.profile_role === 'ADMIN_BARBER' &&
+      profile.visible_on_client_home !== false
+    ) {
       return <BarberDashboard isAdmin />;
     }
     return (
@@ -88,7 +105,10 @@ export default function Index() {
   }
 
   // Subdomínio synapses válido ou domínio próprio resolvido → home da barbearia
-  if (profile?.profile_role === 'ADMIN_BARBER') {
+  if (
+    profile?.profile_role === 'ADMIN_BARBER' &&
+    profile.visible_on_client_home !== false
+  ) {
     return <BarberDashboard isAdmin />;
   }
 

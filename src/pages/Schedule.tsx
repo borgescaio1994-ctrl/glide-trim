@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/contexts/ToastContext';
 import { ArrowLeft, Clock, Loader2 } from 'lucide-react';
+import { isOwnerAdminBarberToolsDisabled } from '@/lib/ownerAdminBarberMode';
 
 const DAYS_OF_WEEK = [
   { value: 0, label: 'Domingo' },
@@ -30,7 +31,7 @@ interface ScheduleDay {
 }
 
 export default function Schedule() {
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const { success, error: showError } = useToast();
   const navigate = useNavigate();
   const [schedules, setSchedules] = useState<ScheduleDay[]>(
@@ -89,6 +90,13 @@ export default function Schedule() {
       void fetchSchedules();
     }
   }, [profile?.id, fetchSchedules]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (isOwnerAdminBarberToolsDisabled(profile)) {
+      navigate('/admin', { replace: true });
+    }
+  }, [authLoading, profile, navigate]);
 
   const handleSave = async () => {
     if (!profile?.id) return;
