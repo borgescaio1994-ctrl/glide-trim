@@ -12,7 +12,10 @@ if ('scrollRestoration' in history) {
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
+    const v = encodeURIComponent(import.meta.env.VITE_APP_VERSION || '0');
+    navigator.serviceWorker
+      .register(`${import.meta.env.BASE_URL}sw.js?v=${v}`)
+      .catch(() => {});
   });
 }
 

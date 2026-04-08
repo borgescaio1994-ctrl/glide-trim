@@ -1,10 +1,10 @@
 /**
  * Service Worker — estratégia segura para SPA (Vite):
- * - Nunca servir index.html antigo do cache (evita chunk JS 404 e tela carregando para sempre).
- * - Navegação: sempre rede primeiro.
- * - Precache só do manifest (ícone/logo não entra no precache para evitar ícone antigo preso no cache).
+ * - Navegação com cache: 'no-store' para não usar a cache HTTP do browser (senão IP vs domínio
+ *   podem mostrar index.html de versões diferentes por origem).
+ * - Precache só do manifest.
  */
-const CACHE_STATIC = 'booknow-v12-static';
+const CACHE_STATIC = 'booknow-v14-static';
 // Manifest na mesma base que o SW (raiz do domínio quando Vite base é /)
 const swDir = self.location.pathname.replace(/\/[^/]+$/, '');
 const PRECACHE_URLS = [swDir ? `${swDir}/manifest.webmanifest` : '/manifest.webmanifest'];
@@ -37,17 +37,19 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Navegação / documento: sempre rede (index.html deve bater com /assets/* atuais)
+  // Navegação / documento: rede sem cache HTTP do browser (evita index.html velho por host)
   if (req.mode === 'navigate' || req.destination === 'document') {
     event.respondWith(
-      fetch(req).catch(() => new Response('Sem conexão. Tente de novo.', { status: 503, statusText: 'Offline' }))
+      fetch(req, { cache: 'no-store' }).catch(
+        () => new Response('Sem conexão. Tente de novo.', { status: 503, statusText: 'Offline' })
+      )
     );
     return;
   }
 
-  // Demais recursos: rede primeiro; opcionalmente guarda cópia para uso offline leve
+  // Demais recursos: rede primeiro; cache SW só como fallback offline (ficheiros /assets/* têm hash novo a cada build)
   event.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-store' })
       .then((res) => {
         if (res && res.status === 200 && res.type === 'basic') {
           const copy = res.clone();
