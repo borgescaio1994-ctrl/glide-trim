@@ -1,5 +1,10 @@
 # Deploy automático: build + envio para Hostinger VPS
 # Uso: npm run deploy   ou   powershell -ExecutionPolicy Bypass -File ./deploy-ssh.ps1
+#
+# Se domínios/subdomínios ainda mostrarem versão antiga:
+# 1) Confirme que o DNS (A/AAAA) de TODOS os hosts aponta para ESTE servidor (ex.: 72.60.159.183).
+# 2) Cloudflare (laranja): Painel → Caching → Purge Everything (ou regra: Bypass cache para /*).
+# 3) Teste: https://SEU-DOMINIO/deploy.json — deve mostrar deployedAt/commit recentes.
 
 $ErrorActionPreference = "Stop"
 $HostName = "72.60.159.183"
@@ -29,6 +34,23 @@ if (-not (Test-Path $DistPath)) {
     exit 1
 }
 
+$commit = "unknown"
+try {
+    Push-Location $PSScriptRoot
+    $commit = (git rev-parse --short HEAD 2>$null).Trim()
+    if (-not $commit) { $commit = "unknown" }
+} finally {
+    Pop-Location
+}
+$deployJson = @{
+    app        = "BookNow"
+    deployedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    commit     = $commit
+} | ConvertTo-Json -Compress
+$deployPath = Join-Path $DistPath "deploy.json"
+Set-Content -Path $deployPath -Value $deployJson -Encoding utf8
+Write-Host "Gerado deploy.json (commit $commit)" -ForegroundColor Gray
+
 Write-Host "`n=== Enviando para $User@${HostName}:$RemotePath ===" -ForegroundColor Cyan
 $TempDir = "/tmp/booknow-deploy-" + (Get-Date -Format "yyyyMMddHHmmss")
 # Criar pasta temporária no servidor
@@ -43,7 +65,9 @@ $Commands = @(
     "find $RemotePath -mindepth 1 -maxdepth 1 -exec rm -rf {} +",
     "cp -r $TempDir/. $RemotePath/",
     "rm -rf $TempDir",
-    "chown -R www-data:www-data $RemotePath 2>/dev/null || true"
+    "chown -R www-data:www-data $RemotePath 2>/dev/null || true",
+    "touch $RemotePath/index.html $RemotePath/deploy.json 2>/dev/null || true",
+    "(nginx -t && (systemctl reload nginx 2>/dev/null || service nginx reload 2>/dev/null || nginx -s reload 2>/dev/null)) || true"
 )
 $CmdLine = $Commands -join " && "
 & ssh -i $SshKey @SshCommonArgs "${User}@${HostName}" $CmdLine
