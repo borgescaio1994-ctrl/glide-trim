@@ -1,0 +1,13 @@
+---
+description: Localização dos projetos na máquina (pasta PROJETOS na Área de Trabalho)
+alwaysApply: true
+---
+
+# Estrutura de pastas no Windows
+
+- **Pasta central de todos os projetos:** `C:\Users\lenovo\Desktop\PROJETOS\`
+- **Este repositório (BookNow):** `C:\Users\lenovo\Desktop\PROJETOS\BOOKNOW`
+
+Ao referenciar caminhos absolutos, scripts, `cd`, deploy local ou integrações (n8n, Supabase, etc.), use sempre a raiz **PROJETOS** acima — não use caminhos antigos como `Desktop\projetodevbarberpro` ou outras pastas fora de **PROJETOS**.
+
+O servidor Node (`server.js`) já resolve arquivos estáticos com `__dirname` relativo ao projeto; não é necessário alterar código só por ter mudado a pasta, desde que o projeto seja aberto/clonado em `PROJETOS\BOOKNOW`.
