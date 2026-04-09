@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "deploy": "powershell -ExecutionPolicy Bypass -File ./deploy-ssh.ps1",
+    "copy:synapse-landing": "powershell -ExecutionPolicy Bypass -File ./scripts/copy-synapse-landing.ps1",
     "lint": "eslint . --ext ts,tsx --max-warnings 0",
     "brand:transparent": "node scripts/make-transparent-logo.mjs"
   },

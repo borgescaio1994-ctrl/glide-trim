@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" fill="none">
+  <defs>
+    <linearGradient id="pcBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0c1424"/>
+      <stop offset="100%" stop-color="#030712"/>
+    </linearGradient>
+    <linearGradient id="pcGreen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="390" height="844" rx="36" fill="url(#pcBg)"/>
+  <rect x="140" y="28" width="110" height="28" rx="14" fill="#1e293b"/>
+  <text x="195" y="48" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="12" font-weight="600">9:41</text>
+  <text x="32" y="110" fill="#f1f5f9" font-family="system-ui,sans-serif" font-size="22" font-weight="700">Pediu Chegou</text>
+  <text x="32" y="138" fill="#64748b" font-family="system-ui,sans-serif" font-size="13">Seu pedido, do jeito certo</text>
+  <rect x="24" y="168" width="80" height="36" rx="18" fill="rgba(52,211,153,0.15)" stroke="rgba(52,211,153,0.4)" stroke-width="1"/>
+  <text x="64" y="192" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="12" font-weight="600">Pizza</text>
+  <rect x="112" y="168" width="80" height="36" rx="18" fill="#0f172a" stroke="rgba(148,163,184,0.2)" stroke-width="1"/>
+  <text x="152" y="192" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="12">Bebidas</text>
+  <rect x="200" y="168" width="80" height="36" rx="18" fill="#0f172a" stroke="rgba(148,163,184,0.2)" stroke-width="1"/>
+  <text x="240" y="192" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="12">Sobremesa</text>
+  <rect x="24" y="228" width="342" height="140" rx="18" fill="#0f172a" stroke="rgba(52,211,153,0.2)" stroke-width="1"/>
+  <rect x="40" y="244" width="100" height="100" rx="12" fill="#1e293b"/>
+  <text x="156" y="272" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="17" font-weight="600">Calabresa especial</text>
+  <text x="156" y="298" fill="#64748b" font-family="system-ui,sans-serif" font-size="12">Massa fina · forno a lenha</text>
+  <text x="156" y="330" fill="#34d399" font-family="system-ui,sans-serif" font-size="18" font-weight="700">R$ 42,90</text>
+  <text x="300" y="330" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="12">+ carrinho</text>
+  <rect x="24" y="388" width="342" height="120" rx="18" fill="#0f172a" stroke="rgba(148,163,184,0.15)" stroke-width="1"/>
+  <text x="40" y="424" fill="#cbd5e1" font-family="system-ui,sans-serif" font-size="14" font-weight="600">Entrega</text>
+  <text x="40" y="448" fill="#64748b" font-family="system-ui,sans-serif" font-size="12">Rua Exemplo, 100  Centro</text>
+  <text x="40" y="478" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="13" font-weight="600">Frete: R$ 5,00</text>
+  <rect x="24" y="528" width="342" height="64" rx="20" fill="url(#pcGreen)"/>
+  <text x="195" y="568" text-anchor="middle" fill="#022c22" font-family="system-ui,sans-serif" font-size="16" font-weight="700">Ver carrinho · 2 itens</text>
+  <rect x="24" y="612" width="342" height="72" rx="14" fill="#0f172a" stroke="rgba(52,211,153,0.25)" stroke-width="1"/>
+  <text x="40" y="644" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="11" font-weight="600" letter-spacing="0.08em">STATUS</text>
+  <text x="40" y="668" fill="#e2e8f0" font-family="system-ui,sans-serif" font-size="14">Pedido em preparo  avisaremos no WhatsApp</text>
+</svg>

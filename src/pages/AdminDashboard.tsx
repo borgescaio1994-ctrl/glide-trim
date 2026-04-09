@@ -1,9 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { deleteUserFromAuth } from '@/lib/authAdmin';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, parseISO } from 'date-fns';
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  parseISO,
+  startOfDay,
+  endOfDay,
+} from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   ArrowLeft,
@@ -18,7 +27,8 @@ import {
   Settings,
   UserPlus,
   X,
-  FileText
+  FileText,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +38,12 @@ import { useToast } from '@/contexts/ToastContext';
 import { SimpleModal } from '@/components/ui/SimpleModal';
 import HomeSettingsEditor from '@/components/admin/HomeSettingsEditor';
 import { messageFromFunctionsInvoke } from '@/lib/edgeFunctionError';
+import {
+  buildAppointmentsCsv,
+  downloadTextFile,
+  printReportAsPdf,
+  type ReportAppointmentRow,
+} from '@/lib/reportExport';
 
 interface Barber {
   id: string;
@@ -90,6 +106,7 @@ export default function AdminDashboard() {
   const [reportStartDate, setReportStartDate] = useState<string>('');
   const [reportEndDate, setReportEndDate] = useState<string>('');
   const [togglingVisibility, setTogglingVisibility] = useState<string | null>(null);
+  const [establishmentName, setEstablishmentName] = useState<string>('');
 
   const isAdminBarber = profile?.profile_role === 'ADMIN_BARBER';
   const establishmentIdFilter = isAdminBarber ? profile?.establishment_id ?? null : null;
@@ -115,58 +132,130 @@ export default function AdminDashboard() {
     fetchData();
   }, [period, establishmentIdFilter]);
 
-  const fetchCompletedAppointments = async () => {
-    setLoadingReports(true);
+  useEffect(() => {
+    if (!establishmentIdFilter) {
+      setEstablishmentName('');
+      return;
+    }
+    void (supabase as any)
+      .from('establishments')
+      .select('name')
+      .eq('id', establishmentIdFilter)
+      .maybeSingle()
+      .then((res: { data: { name?: string } | null }) => setEstablishmentName(res.data?.name ?? ''));
+  }, [establishmentIdFilter]);
 
-    let query = supabase
-      .from('appointments')
-      .select(`
+  const reportSelect = `
         *,
         client:profiles!appointments_client_id_fkey(full_name),
         barber:profiles!appointments_barber_id_fkey(full_name),
         service:services(name, price, duration_minutes)
-      `)
-      .in('status', ['completed', 'cancelled'])
-      .order('completed_at', { ascending: false, nullsFirst: false })
-      .order('cancelled_at', { ascending: false, nullsFirst: false });
+      `;
 
-    if (reportBarber !== 'all') {
-      query = query.eq('barber_id', reportBarber);
-    }
-    if (establishmentIdFilter) {
-      query = query.eq('establishment_id', establishmentIdFilter);
-    }
-
-    if (reportStartDate) {
-      query = query.gte('completed_at', reportStartDate + 'T00:00:00.000Z');
-    }
-
-    if (reportEndDate) {
-      query = query.lt('completed_at', reportEndDate + 'T23:59:59.999Z');
-    } else if (!reportStartDate) {
-      // If no dates, default to current period
-      const today = new Date();
-      let startDate: Date;
-      let endDate: Date;
-
-      if (period === 'week') {
-        startDate = startOfWeek(today, { locale: ptBR });
-        endDate = endOfWeek(today, { locale: ptBR });
-      } else {
-        startDate = startOfMonth(today);
-        endDate = endOfMonth(today);
+  const fetchCompletedAppointments = useCallback(
+    async (rangeOverride?: { startDate?: string; endDate?: string; allHistory?: boolean }) => {
+      if (!establishmentIdFilter) {
+        setCompletedAndCancelledAppointments([]);
+        return;
       }
 
-      query = query.gte('completed_at', startDate.toISOString()).lt('completed_at', endDate.toISOString());
-    }
+      const startIn = rangeOverride?.startDate ?? reportStartDate;
+      const endIn = rangeOverride?.endDate ?? reportEndDate;
 
-    const { data } = await query;
+      /** Sem datas = todo o histórico disponível na base (até os registos serem apagados). */
+      let allHistory =
+        rangeOverride?.allHistory === true || (!startIn?.trim() && !endIn?.trim());
 
-    if (data) {
-      setCompletedAndCancelledAppointments(data);
-    }
-    setLoadingReports(false);
-  };
+      let startIso: string | null = null;
+      let endIso: string | null = null;
+
+      if (!allHistory) {
+        let startD: Date;
+        let endD: Date;
+        if (startIn?.trim() && endIn?.trim()) {
+          startD = startOfDay(parseISO(startIn));
+          endD = endOfDay(parseISO(endIn));
+        } else if (startIn?.trim() && !endIn?.trim()) {
+          startD = startOfDay(parseISO(startIn));
+          endD = endOfDay(new Date());
+        } else if (!startIn?.trim() && endIn?.trim()) {
+          startD = startOfDay(new Date('2000-01-01'));
+          endD = endOfDay(parseISO(endIn));
+        } else {
+          allHistory = true;
+        }
+
+        if (!allHistory && startD! > endD!) {
+          showError('A data inicial não pode ser posterior à data final.');
+          return;
+        }
+        if (!allHistory) {
+          startIso = startD!.toISOString();
+          endIso = endD!.toISOString();
+        }
+      }
+
+      setLoadingReports(true);
+      try {
+        const sb = supabase as any;
+        const rowLimit = allHistory ? 15000 : 8000;
+
+        let qCompleted = sb
+          .from('appointments')
+          .select(reportSelect)
+          .eq('status', 'completed')
+          .eq('establishment_id', establishmentIdFilter);
+
+        let qCancelled = sb
+          .from('appointments')
+          .select(reportSelect)
+          .eq('status', 'cancelled')
+          .not('cancelled_at', 'is', null)
+          .eq('establishment_id', establishmentIdFilter);
+
+        if (!allHistory && startIso && endIso) {
+          qCompleted = qCompleted.gte('completed_at', startIso).lte('completed_at', endIso);
+          qCancelled = qCancelled.gte('cancelled_at', startIso).lte('cancelled_at', endIso);
+        }
+
+        if (reportBarber !== 'all') {
+          qCompleted = qCompleted.eq('barber_id', reportBarber);
+          qCancelled = qCancelled.eq('barber_id', reportBarber);
+        }
+
+        const resCompleted = await qCompleted.limit(rowLimit);
+        const resCancelled = await qCancelled.limit(rowLimit);
+
+        if (resCompleted.error) throw resCompleted.error;
+        if (resCancelled.error) throw resCancelled.error;
+
+        const merged = [
+          ...(resCompleted.data ?? []),
+          ...(resCancelled.data ?? []),
+        ] as unknown as ReportAppointmentRow[];
+        merged.sort((a, b) => {
+          const ta = (a.status === 'completed' ? a.completed_at : a.cancelled_at) || '';
+          const tb = (b.status === 'completed' ? b.completed_at : b.cancelled_at) || '';
+          return new Date(tb).getTime() - new Date(ta).getTime();
+        });
+
+        setCompletedAndCancelledAppointments(merged);
+      } catch (e) {
+        console.error('Relatório:', e);
+        showError('Erro ao carregar o relatório. Tente novamente.');
+        setCompletedAndCancelledAppointments([]);
+      } finally {
+        setLoadingReports(false);
+      }
+    },
+    [
+      establishmentIdFilter,
+      reportStartDate,
+      reportEndDate,
+      reportBarber,
+      showError,
+    ]
+  );
 
   const fetchData = async () => {
     setLoading(true);
@@ -190,11 +279,10 @@ export default function AdminDashboard() {
       setBarbers([]);
       return;
     }
-    let query = supabase
+    let query = (supabase as any)
       .from('profiles')
       .select('*')
-      // Schema multitenant: profissionais usam profile_role; role legado pode divergir
-      .in('profile_role', ['BARBER', 'ADMIN_BARBER'] as any)
+      .in('profile_role', ['BARBER', 'ADMIN_BARBER'])
       .neq('email', import.meta.env.VITE_SUPERADMIN_EMAIL || '')
       .order('full_name');
     if (establishmentIdFilter) query = query.eq('establishment_id', establishmentIdFilter);
@@ -207,7 +295,7 @@ export default function AdminDashboard() {
       setRegisteredBarbers([]);
       return;
     }
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from('registered_barbers')
       .select('*')
       .eq('establishment_id', establishmentIdFilter)
@@ -233,19 +321,19 @@ export default function AdminDashboard() {
 
     try {
       // Regra do plano: limita a quantidade de profissionais.
-      const { data: estData } = await supabase
+      const { data: estData } = await (supabase as any)
         .from('establishments')
         .select('max_barbers')
         .eq('id', establishmentIdFilter)
         .maybeSingle();
 
-      const maxBarbers = estData?.max_barbers ?? 999;
+      const maxBarbers = (estData as { max_barbers?: number } | null)?.max_barbers ?? 999;
 
-      const { count } = await supabase
+      const { count } = await (supabase as any)
         .from('profiles')
         .select('id', { count: 'exact', head: true })
         .eq('establishment_id', establishmentIdFilter)
-        .in('profile_role', ['BARBER', 'ADMIN_BARBER'] as any);
+        .in('profile_role', ['BARBER', 'ADMIN_BARBER']);
 
       const currentBarbers = count ?? 0;
       if (currentBarbers >= maxBarbers) {
@@ -338,7 +426,7 @@ export default function AdminDashboard() {
       endDate = endOfMonth(today);
     }
 
-    let revQuery = supabase
+    let revQuery = (supabase as any)
       .from('appointments')
       .select(`
         barber_id,
@@ -398,7 +486,7 @@ export default function AdminDashboard() {
       endDate = endOfMonth(today);
     }
 
-    let svcQuery = supabase
+    let svcQuery = (supabase as any)
       .from('appointments')
       .select('service:services(name, price)')
       .eq('status', 'completed')
@@ -552,8 +640,46 @@ export default function AdminDashboard() {
     }).format(price);
   };
 
-  const generatePDF = () => {
-    success('Relatório exibido na tela. Exportação em PDF será disponibilizada em breve.');
+  const reportPeriodLabel = () => {
+    try {
+      if (reportStartDate?.trim() && reportEndDate?.trim()) {
+        return `${format(parseISO(reportStartDate), 'dd/MM/yyyy', { locale: ptBR })} — ${format(parseISO(reportEndDate), 'dd/MM/yyyy', { locale: ptBR })}`;
+      }
+      if (reportStartDate?.trim() && !reportEndDate?.trim()) {
+        return `desde ${format(parseISO(reportStartDate), 'dd/MM/yyyy', { locale: ptBR })} até hoje`;
+      }
+      if (!reportStartDate?.trim() && reportEndDate?.trim()) {
+        return `até ${format(parseISO(reportEndDate), 'dd/MM/yyyy', { locale: ptBR })}`;
+      }
+    } catch {
+      /* ignore */
+    }
+    return 'todo o histórico disponível na base (até exclusão manual)';
+  };
+
+  const handleExportCsv = () => {
+    if (completedAndCancelledAppointments.length === 0) return;
+    const csv = buildAppointmentsCsv(completedAndCancelledAppointments as ReportAppointmentRow[], {
+      establishmentName: establishmentName || undefined,
+      periodLabel: reportPeriodLabel(),
+    });
+    const fname = `relatorio-booknow-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`;
+    downloadTextFile(fname, csv, 'text/csv;charset=utf-8');
+    success('Ficheiro CSV gerado (abre no Excel).');
+  };
+
+  const handleExportPdf = () => {
+    if (completedAndCancelledAppointments.length === 0) return;
+    const ok = printReportAsPdf(completedAndCancelledAppointments as ReportAppointmentRow[], {
+      establishmentName: establishmentName || undefined,
+      periodLabel: reportPeriodLabel(),
+      generatedAt: format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR }),
+    });
+    if (ok) {
+      success('Abra a pré-visualização de impressão e use "Guardar como PDF".');
+    } else {
+      showError('Permita janelas emergentes para gerar o PDF.');
+    }
   };
 
   const pieColors = [
@@ -585,8 +711,10 @@ export default function AdminDashboard() {
           </div>
           <Button
             onClick={() => {
+              setReportStartDate('');
+              setReportEndDate('');
               setShowReports(true);
-              fetchCompletedAppointments();
+              void fetchCompletedAppointments({ allHistory: true });
             }}
             variant="outline"
             className="gap-2 border-primary/50 text-primary hover:bg-primary/10"
@@ -1009,7 +1137,7 @@ export default function AdminDashboard() {
         open={showReports}
         onOpenChange={setShowReports}
         title="Relatório de Procedimentos Concluídos e Cancelados"
-        description="Detalhes de todos os procedimentos finalizados. Use os filtros abaixo para personalizar a visualização."
+        description="Os registos permanecem na base até serem apagados (sem expiração automática). Ao abrir, carrega todo o histórico da loja; use as datas para filtrar um período, ou deixe-as vazias para voltar a ver tudo. Exporte em CSV/Excel ou PDF."
         className="max-w-4xl max-h-[80vh] overflow-y-auto"
       >
           {/* Filters */}
@@ -1052,9 +1180,14 @@ export default function AdminDashboard() {
                 />
               </div>
             </div>
-            <Button onClick={fetchCompletedAppointments} className="w-full md:w-auto">
-              Aplicar Filtros
+            <Button onClick={() => void fetchCompletedAppointments()} className="w-full md:w-auto">
+              Aplicar filtros
             </Button>
+            <p className="text-xs text-muted-foreground">
+              Datas vazias = todo o histórico guardado para esta loja (sem limite de tempo; só some se o agendamento for
+              eliminado). Com muitos registos, a lista limita a 15&nbsp;000 concluídos e 15&nbsp;000 cancelados por
+              consulta — use o filtro por período se precisar de mais detalhe.
+            </p>
           </div>
 
           {loadingReports ? (
@@ -1069,7 +1202,7 @@ export default function AdminDashboard() {
           ) : completedAndCancelledAppointments.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground">Nenhum procedimento concluído no período</p>
+              <p className="text-muted-foreground">Nenhum procedimento concluído ou cancelado neste período</p>
             </div>
           ) : (
             <div id="reports-content" className="space-y-3">
@@ -1101,9 +1234,11 @@ export default function AdminDashboard() {
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {appointment.status === 'completed'
+                        {appointment.status === 'completed' && appointment.completed_at
                           ? format(parseISO(appointment.completed_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
-                          : format(parseISO(appointment.cancelled_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          : appointment.cancelled_at
+                            ? format(parseISO(appointment.cancelled_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                            : '—'}
                       </p>
                     </div>
                   </div>
@@ -1120,12 +1255,18 @@ export default function AdminDashboard() {
               ))}
             </div>
           )}
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
           {completedAndCancelledAppointments.length > 0 && (
-            <Button onClick={generatePDF} variant="outline" className="gap-2">
-              <FileText className="w-4 h-4" />
-              Download PDF
-            </Button>
+            <>
+              <Button onClick={handleExportCsv} variant="outline" className="gap-2">
+                <Download className="w-4 h-4" />
+                CSV / Excel
+              </Button>
+              <Button onClick={handleExportPdf} variant="outline" className="gap-2">
+                <FileText className="w-4 h-4" />
+                PDF (imprimir)
+              </Button>
+            </>
           )}
         </div>
       </SimpleModal>

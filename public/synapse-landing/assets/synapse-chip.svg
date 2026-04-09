@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="chipG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="cyanE" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="14" y="14" width="92" height="92" rx="18" fill="url(#chipG)" stroke="url(#cyanE)" stroke-width="1.5"/>
+  <rect x="22" y="22" width="76" height="76" rx="12" fill="#020617" stroke="rgba(34,211,238,0.35)" stroke-width="1"/>
+  <path d="M60 34v52M34 60h52" stroke="url(#cyanE)" stroke-width="2" stroke-linecap="round" opacity="0.85" filter="url(#glow)"/>
+  <circle cx="60" cy="60" r="8" fill="rgba(34,211,238,0.15)" stroke="url(#cyanE)" stroke-width="1.5"/>
+  <circle cx="60" cy="60" r="3" fill="#22d3ee"/>
+  <path d="M60 44v-6M60 82v-6M44 60h-6M82 60h-6" stroke="#22d3ee" stroke-width="1.2" stroke-linecap="round" opacity="0.6"/>
+  <rect x="10" y="52" width="6" height="16" rx="2" fill="#334155"/>
+  <rect x="104" y="52" width="6" height="16" rx="2" fill="#334155"/>
+  <rect x="52" y="10" width="16" height="6" rx="2" fill="#334155"/>
+  <rect x="52" y="104" width="16" height="6" rx="2" fill="#334155"/>
+</svg>

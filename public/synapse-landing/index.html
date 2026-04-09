@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Synapses.ia — soluções tecnológicas ultra premium: PWAs, automações n8n e Evolution. BookNow e Pediu Chegou." />
+  <meta name="theme-color" content="#030304" />
+  <title>Synapses.ia · Soluções tecnológicas & automações inteligentes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --black: #030304;
+      --leather: #060608;
+      --chrome-light: #f0f4f8;
+      --chrome-mid: #8b9cb3;
+      --chrome-dark: #3d4856;
+      --cyan: #00e5ff;
+      --cyan-soft: rgba(0, 229, 255, 0.45);
+      --cyan-dim: rgba(0, 229, 255, 0.12);
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --border-chrome: linear-gradient(145deg, rgba(255, 255, 255, 0.35), rgba(100, 116, 139, 0.25));
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      --radius: 18px;
+      --radius-lg: 26px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 5.5rem;
+    }
+
+    body {
+      font-family: "Inter", system-ui, sans-serif;
+      background-color: var(--black);
+      color: var(--text);
+      line-height: 1.65;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: max(5rem, env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Leather + spotlight base */
+    .page-bg {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background:
+        radial-gradient(ellipse 85% 55% at 50% 12%, rgba(255, 255, 255, 0.06) 0%, transparent 55%),
+        radial-gradient(ellipse 120% 80% at 50% 100%, rgba(0, 0, 0, 0.85) 0%, transparent 50%),
+        var(--leather);
+    }
+
+    .page-bg::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.55;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='l'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)' opacity='0.45'/%3E%3C/svg%3E");
+      mix-blend-mode: overlay;
+      pointer-events: none;
+    }
+
+    .page-bg::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.03) 2px, rgba(0, 0, 0, 0.03) 3px),
+        repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255, 255, 255, 0.015) 2px, rgba(255, 255, 255, 0.015) 3px);
+      pointer-events: none;
+    }
+
+    .vignette {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background: radial-gradient(ellipse 90% 70% at 50% 35%, transparent 30%, rgba(0, 0, 0, 0.75) 100%);
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* —— Animated brand mark —— */
+    .brand-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 2.25rem;
+    }
+
+    .brand-signal {
+      position: relative;
+      width: auto;
+      max-width: min(340px, 92vw);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Pulso central “coração”: dois picos por ciclo (lub–dub) */
+    .brand-signal .glow-core {
+      position: absolute;
+      width: 38%;
+      height: 38%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 229, 255, 0.65) 0%, rgba(0, 229, 255, 0.12) 45%, transparent 72%);
+      filter: blur(16px);
+      animation: heartCore 2.4s cubic-bezier(0.45, 0.02, 0.2, 1) infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    @keyframes heartCore {
+      0%, 100% { opacity: 0.55; transform: scale(0.96); }
+      8% { opacity: 1; transform: scale(1.08); }
+      14% { opacity: 0.6; transform: scale(0.98); }
+      22% { opacity: 0.95; transform: scale(1.06); }
+      30% { opacity: 0.55; transform: scale(1); }
+      100% { opacity: 0.55; transform: scale(0.96); }
+    }
+
+    .brand-img-wrap {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      max-width: 280px;
+      transform-origin: center center;
+      animation: logoHeartGlow 2.4s cubic-bezier(0.45, 0.02, 0.2, 1) infinite;
+    }
+
+    @keyframes logoHeartGlow {
+      0%, 100% {
+        filter:
+          drop-shadow(0 0 10px rgba(0, 229, 255, 0.3))
+          drop-shadow(0 0 28px rgba(0, 229, 255, 0.12));
+        transform: scale(1);
+      }
+      8% {
+        filter:
+          drop-shadow(0 0 20px rgba(0, 229, 255, 0.75))
+          drop-shadow(0 0 48px rgba(0, 229, 255, 0.35));
+        transform: scale(1.03);
+      }
+      14% {
+        filter:
+          drop-shadow(0 0 12px rgba(0, 229, 255, 0.35))
+          drop-shadow(0 0 32px rgba(0, 229, 255, 0.15));
+        transform: scale(1.01);
+      }
+      22% {
+        filter:
+          drop-shadow(0 0 18px rgba(0, 229, 255, 0.65))
+          drop-shadow(0 0 42px rgba(0, 229, 255, 0.28));
+        transform: scale(1.025);
+      }
+      30%, 100% {
+        filter:
+          drop-shadow(0 0 10px rgba(0, 229, 255, 0.3))
+          drop-shadow(0 0 28px rgba(0, 229, 255, 0.12));
+        transform: scale(1);
+      }
+    }
+
+    .brand-img-wrap img {
+      display: block;
+      width: 100%;
+      max-width: 260px;
+      height: auto;
+      object-fit: contain;
+    }
+
+    .brand-wordmark {
+      margin-top: 1.1rem;
+      font-family: "Montserrat", sans-serif;
+      font-weight: 800;
+      font-size: clamp(1.35rem, 4.2vw, 1.85rem);
+      letter-spacing: 0.04em;
+      color: var(--chrome-light);
+      text-shadow: 0 2px 24px rgba(0, 0, 0, 0.85), 0 0 40px rgba(0, 229, 255, 0.08);
+    }
+
+    .brand-wordmark .wm-dot {
+      color: var(--cyan);
+      text-shadow: 0 0 24px rgba(0, 229, 255, 0.35);
+    }
+
+    /* Header */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 1rem 0;
+      padding-top: max(1rem, env(safe-area-inset-top, 0px));
+      background: linear-gradient(to bottom, rgba(3, 3, 4, 0.94), rgba(3, 3, 4, 0.5), transparent);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .logo-lockup {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .logo-lockup img {
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.35));
+    }
+
+    .logo-lockup span {
+      font-family: "Montserrat", sans-serif;
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: 0.03em;
+      color: var(--chrome-light);
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+    }
+
+    .logo-lockup span em {
+      font-style: normal;
+      color: var(--cyan);
+    }
+
+    .header-wa.btn-whatsapp {
+      flex-shrink: 0;
+      gap: 0.4rem;
+    }
+
+    .header-wa.btn-whatsapp svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+      flex-shrink: 0;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      padding: 0.62rem 1.1rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      border-radius: 999px;
+      text-decoration: none;
+      transition: transform 0.2s var(--ease), box-shadow 0.25s, border-color 0.2s;
+      border: 1px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn:active { transform: scale(0.98); }
+
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.03);
+      border-color: rgba(200, 210, 225, 0.2);
+      color: var(--chrome-light);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .btn-ghost:hover {
+      border-color: rgba(0, 229, 255, 0.35);
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.12);
+    }
+
+    .btn-primary {
+      background: linear-gradient(145deg, #00e8ff 0%, #00a8cc 100%);
+      color: #020617;
+      border-color: rgba(255, 255, 255, 0.35);
+      box-shadow:
+        0 0 0 1px rgba(0, 229, 255, 0.25),
+        0 8px 32px rgba(0, 229, 255, 0.35);
+    }
+
+    .btn-primary:hover {
+      box-shadow:
+        0 0 0 1px rgba(0, 229, 255, 0.45),
+        0 12px 40px rgba(0, 229, 255, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: linear-gradient(180deg, rgba(70, 85, 105, 0.5), rgba(30, 41, 59, 0.85));
+      color: var(--chrome-light);
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+
+    .btn-secondary:hover {
+      border-color: rgba(0, 229, 255, 0.25);
+    }
+
+    .btn-whatsapp {
+      background: linear-gradient(145deg, #25d366 0%, #128c7e 100%);
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow:
+        0 0 0 1px rgba(37, 211, 102, 0.35),
+        0 8px 28px rgba(37, 211, 102, 0.32);
+    }
+
+    .btn-whatsapp:hover {
+      box-shadow:
+        0 0 0 1px rgba(37, 211, 102, 0.5),
+        0 12px 36px rgba(37, 211, 102, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .wa-float {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      z-index: 200;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(145deg, #25d366, #128c7e);
+      color: #fff;
+      box-shadow:
+        0 6px 28px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(255, 255, 255, 0.12);
+      text-decoration: none;
+      transition: transform 0.2s var(--ease), box-shadow 0.25s;
+    }
+
+    .wa-float:hover {
+      transform: scale(1.07);
+      box-shadow: 0 10px 36px rgba(37, 211, 102, 0.45);
+    }
+
+    .wa-float svg {
+      width: 30px;
+      height: 30px;
+      fill: currentColor;
+    }
+
+    /* Hero */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 6.5rem 0 3.5rem;
+      position: relative;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(200, 220, 235, 0.2), transparent);
+    }
+
+    /* Evita o header fixo cobrir o chip no mobile */
+    @media (max-width: 768px) {
+      html {
+        scroll-padding-top: 6.5rem;
+      }
+
+      .hero {
+        padding-top: calc(env(safe-area-inset-top, 0px) + 8.5rem);
+        padding-bottom: 3rem;
+        min-height: 100dvh;
+        min-height: 100vh;
+      }
+
+      header {
+        padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+        padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+      }
+
+      .header-wa.btn-whatsapp {
+        padding: 0.5rem 0.85rem;
+        font-size: 0.75rem;
+        gap: 0.35rem;
+      }
+
+      .header-wa.btn-whatsapp svg {
+        width: 16px;
+        height: 16px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .hero {
+        padding-top: calc(env(safe-area-inset-top, 0px) + 9rem);
+      }
+
+      .logo-lockup span {
+        font-size: 0.95rem;
+      }
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.38rem 0.95rem;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      background: rgba(0, 229, 255, 0.08);
+      border: 1px solid rgba(0, 229, 255, 0.28);
+      border-radius: 999px;
+      margin-bottom: 1.35rem;
+      box-shadow: 0 0 24px rgba(0, 229, 255, 0.1);
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan);
+      animation: dotBlink 1.8s ease-in-out infinite;
+    }
+
+    @keyframes dotBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
+    .hero h1 {
+      font-family: "Montserrat", sans-serif;
+      font-weight: 800;
+      font-size: clamp(1.65rem, 4.8vw, 2.65rem);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      max-width: 22ch;
+      margin: 0 auto 1.1rem;
+      text-align: center;
+      color: var(--chrome-light);
+      text-shadow: 0 4px 28px rgba(0, 0, 0, 0.9);
+    }
+
+    .hero h1 .hl {
+      color: var(--cyan);
+      text-shadow: 0 0 40px rgba(0, 229, 255, 0.35);
+    }
+
+    .hero-lead {
+      font-size: 1.0625rem;
+      color: var(--text-muted);
+      max-width: 48ch;
+      margin: 0 auto 1.75rem;
+      text-align: center;
+    }
+
+    .hero-lead strong {
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      justify-content: center;
+      margin-bottom: 2.25rem;
+    }
+
+    .trust-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 1.25rem 2rem;
+      padding-top: 1.25rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      max-width: 640px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .trust-row strong { color: #cbd5e1; }
+
+    /* Sections */
+    section { padding: 4.5rem 0; }
+
+    .section-label {
+      font-size: 0.6875rem;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 0.65rem;
+      text-shadow: 0 0 20px rgba(0, 229, 255, 0.25);
+    }
+
+    .section-title {
+      font-family: "Montserrat", sans-serif;
+      font-weight: 800;
+      font-size: clamp(1.45rem, 3.5vw, 2.15rem);
+      line-height: 1.2;
+      margin-bottom: 0.85rem;
+      max-width: 22ch;
+      color: var(--chrome-light);
+      text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
+    }
+
+    .section-desc {
+      color: var(--text-muted);
+      max-width: 58ch;
+      margin-bottom: 2rem;
+      font-size: 0.975rem;
+    }
+
+    /* Metallic cards */
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 768px) {
+      .about-grid { grid-template-columns: 1fr; }
+    }
+
+    .about-card {
+      position: relative;
+      padding: 1.5rem 1.4rem;
+      border-radius: var(--radius);
+      background: linear-gradient(165deg, rgba(255, 255, 255, 0.06) 0%, rgba(15, 23, 42, 0.5) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 12px 40px rgba(0, 0, 0, 0.45);
+      transition: border-color 0.35s, box-shadow 0.35s;
+    }
+
+    .about-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.2), transparent 40%, rgba(0, 229, 255, 0.15));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+
+    .about-card:hover {
+      border-color: rgba(0, 229, 255, 0.28);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 16px 48px rgba(0, 0, 0, 0.5),
+        0 0 40px rgba(0, 229, 255, 0.08);
+    }
+
+    .about-card h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 0.45rem;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      color: var(--chrome-light);
+    }
+
+    .about-card p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    .icon-box {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(0, 229, 255, 0.2), rgba(0, 229, 255, 0.05));
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.12);
+    }
+
+    /* Products */
+    .products {
+      background: linear-gradient(180deg, transparent, rgba(0, 229, 255, 0.03));
+    }
+
+    .product-card {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: stretch;
+      margin-bottom: 1.5rem;
+      padding: 2rem;
+      border-radius: var(--radius-lg);
+      background: linear-gradient(160deg, rgba(20, 25, 35, 0.9), rgba(5, 8, 14, 0.95));
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 20px 60px rgba(0, 0, 0, 0.55);
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.35s, box-shadow 0.35s;
+    }
+
+    .product-card:last-child { margin-bottom: 0; }
+
+    .product-card:hover {
+      border-color: rgba(0, 229, 255, 0.22);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 24px 72px rgba(0, 0, 0, 0.6),
+        0 0 50px rgba(0, 229, 255, 0.06);
+    }
+
+    .product-card.reverse { direction: rtl; }
+    .product-card.reverse > * { direction: ltr; }
+
+    @media (max-width: 900px) {
+      .product-card,
+      .product-card.reverse {
+        grid-template-columns: 1fr;
+        direction: ltr;
+      }
+    }
+
+    .product-visual {
+      border-radius: var(--radius);
+      min-height: 0;
+      display: block;
+      padding: 0;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #080a0e;
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+        0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .product-shot-img {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: min(520px, 72vh);
+      object-fit: cover;
+      object-position: top center;
+      vertical-align: middle;
+    }
+
+    .product-visual-footer {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 1.35rem 1.25rem 1.15rem;
+      background: linear-gradient(to top, rgba(3, 5, 10, 0.94) 0%, rgba(3, 5, 10, 0.5) 55%, transparent 100%);
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .product-tag {
+      display: inline-block;
+      font-size: 0.625rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: var(--cyan);
+      margin-bottom: 0.45rem;
+    }
+
+    .product-visual h3 {
+      font-family: "Montserrat", sans-serif;
+      font-weight: 800;
+      font-size: 1.45rem;
+      margin: 0;
+      color: var(--chrome-light);
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+    }
+
+    .product-body h2 {
+      font-family: "Montserrat", sans-serif;
+      font-weight: 700;
+      font-size: 1.25rem;
+      margin-bottom: 0.85rem;
+      color: var(--chrome-light);
+    }
+
+    .product-body ul { list-style: none; margin-bottom: 1.35rem; }
+
+    .product-body li {
+      position: relative;
+      padding-left: 1.25rem;
+      margin-bottom: 0.55rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .product-body li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan-soft);
+    }
+
+    .product-cta { display: flex; flex-wrap: wrap; gap: 0.55rem; }
+
+    /* Stack */
+    .stack {
+      text-align: center;
+      padding: 3.5rem 0 4.5rem;
+    }
+
+    .stack .section-title {
+      margin-left: auto;
+      margin-right: auto;
+      max-width: 26ch;
+    }
+
+    .stack .section-desc {
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .stack-pills {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.55rem;
+      margin-top: 0.5rem;
+    }
+
+    .pill {
+      padding: 0.45rem 0.95rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+    }
+
+    .pill.highlight {
+      border-color: rgba(0, 229, 255, 0.45);
+      color: var(--cyan);
+      background: rgba(0, 229, 255, 0.08);
+      box-shadow: 0 0 24px rgba(0, 229, 255, 0.12);
+    }
+
+    /* Final CTA */
+    .final-cta { padding: 4rem 0 5.5rem; }
+
+    .cta-box {
+      position: relative;
+      border-radius: var(--radius-lg);
+      padding: 2.75rem 1.75rem;
+      text-align: center;
+      overflow: hidden;
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      background: linear-gradient(165deg, rgba(0, 229, 255, 0.1), rgba(10, 15, 25, 0.95));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 24px 80px rgba(0, 0, 0, 0.55),
+        0 0 60px rgba(0, 229, 255, 0.1);
+    }
+
+    .cta-box::before {
+      content: "";
+      position: absolute;
+      top: -40%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 70%;
+      height: 80%;
+      background: radial-gradient(ellipse, rgba(0, 229, 255, 0.2), transparent 65%);
+      pointer-events: none;
+    }
+
+    .cta-box h2 {
+      font-family: "Montserrat", sans-serif;
+      font-weight: 800;
+      font-size: clamp(1.35rem, 3.5vw, 2rem);
+      margin-bottom: 0.65rem;
+      position: relative;
+      color: var(--chrome-light);
+    }
+
+    .cta-box p {
+      color: var(--text-muted);
+      max-width: 44ch;
+      margin: 0 auto 1.35rem;
+      position: relative;
+      font-size: 0.95rem;
+    }
+
+    .cta-box .hero-actions {
+      margin-bottom: 0;
+    }
+
+    footer {
+      padding: 2rem 0 2.5rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    footer .brand-footer {
+      font-family: "Montserrat", sans-serif;
+      font-weight: 700;
+      color: #cbd5e1;
+      margin-bottom: 0.35rem;
+    }
+
+    footer a {
+      color: var(--cyan);
+      text-decoration: none;
+    }
+
+    footer a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <div class="page-bg" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <header>
+    <div class="wrap header-inner">
+      <a href="#" class="logo-lockup">
+        <img src="assets/synapse-chip.png" width="40" height="40" alt="" decoding="async" />
+        <span>Synapses<em>.ia</em></span>
+      </a>
+      <a
+        class="btn btn-whatsapp header-wa"
+        href="https://wa.me/5511977154516?text=Ol%C3%A1%21%20Vim%20pelo%20site%20da%20Synapses.ia%20e%20gostaria%20de%20conversar%20sobre%20uma%20solu%C3%A7%C3%A3o."
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.881 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        WhatsApp
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap" style="display: flex; flex-direction: column; align-items: center;">
+        <div class="brand-stage">
+          <div class="brand-signal" aria-hidden="true">
+            <span class="glow-core"></span>
+            <div class="brand-img-wrap">
+              <img src="assets/synapse-chip.png" alt="" width="520" height="520" decoding="async" fetchpriority="high" />
+            </div>
+          </div>
+          <p class="brand-wordmark">Synapses<span class="wm-dot">.ia</span></p>
+        </div>
+
+        <p class="badge"><span class="badge-dot" aria-hidden="true"></span> PWAs · n8n · Evolution API</p>
+        <h1>Apps do cotidiano com precisão de engenharia e <span class="hl">automação que responde</span>.</h1>
+        <p class="hero-lead">
+          A <strong>Synapses.ia</strong> é uma empresa de soluções tecnológicas focada em PWAs de alto padrão, orquestração em <strong>n8n</strong> e mensageria via <strong>Evolution</strong> — para você operar com clareza, escalar com segurança e impressionar o cliente em cada touchpoint.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-whatsapp" href="https://wa.me/5511977154516?text=Ol%C3%A1%21%20Vim%20pelo%20site%20da%20Synapses.ia%20e%20gostaria%20de%20conversar%20sobre%20uma%20solu%C3%A7%C3%A3o." target="_blank" rel="noopener noreferrer">Falar no WhatsApp</a>
+          <a class="btn btn-primary" href="#produtos">Ver soluções em produção</a>
+          <a class="btn btn-secondary" href="#sobre">Por que a Synapses.ia</a>
+        </div>
+        <div class="trust-row">
+          <span><strong>Dois produtos</strong> ao vivo · mensagens automáticas · faturamento sob controle</span>
+          <span>Mobile-first · instalação como app · experiência premium</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="sobre">
+      <div class="wrap">
+        <p class="section-label">O que fazemos</p>
+        <h2 class="section-title">Tecnologia aplicada ao que você faz todos os dias</h2>
+        <p class="section-desc">
+          Não entregamos só interface: entregamos fluxo completo — do pedido ou agendamento à mensagem automática e ao painel de faturamento — com acabamento visual e automação onde o processo pede precisão.
+        </p>
+        <div class="about-grid">
+          <article class="about-card">
+            <h3><span class="icon-box" aria-hidden="true">⚡</span> Automação com n8n</h3>
+            <p>Confirmações, lembretes e gatilhos inteligentes (como retorno após 15 dias) em workflows auditáveis e fáceis de evoluir.</p>
+          </article>
+          <article class="about-card">
+            <h3><span class="icon-box" aria-hidden="true">💬</span> Evolution + WhatsApp</h3>
+            <p>Seu cliente recebe a mensagem certa no momento certo — sem copiar texto, sem perder venda por silêncio.</p>
+          </article>
+          <article class="about-card">
+            <h3><span class="icon-box" aria-hidden="true">📱</span> PWA ultra premium</h3>
+            <p>Performance, carrinho e fluxos pensados para uso real no celular; instala como app, sem atrito de loja.</p>
+          </article>
+          <article class="about-card">
+            <h3><span class="icon-box" aria-hidden="true">📊</span> Faturamento & controle</h3>
+            <p>Visão consolidada e, quando faz sentido, por colaborador ou operação — decisão com número, não com achismo.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="products" id="produtos">
+      <div class="wrap">
+        <p class="section-label">Cases em produção</p>
+        <h2 class="section-title">Duas soluções reais. Uma obsessão: performance e conversão.</h2>
+        <p class="section-desc">
+          Telas reais dos PWAs em produção — interface limpa, foco em conversão e uso no celular.
+        </p>
+
+        <article class="product-card">
+          <div class="product-visual booknow">
+            <img
+              class="product-shot-img"
+              src="assets/booknow-synapses-ia.png"
+              alt="Synapses.ia BookNow — tela inicial com busca e profissionais"
+              width="390"
+              height="844"
+              loading="lazy"
+              decoding="async"
+            />
+            <div class="product-visual-footer">
+              <span class="product-tag">Agendamento inteligente</span>
+              <h3>BookNow</h3>
+            </div>
+          </div>
+          <div class="product-body">
+            <h2>Agenda que confirma sozinha e traz o cliente de volta</h2>
+            <ul>
+              <li>Mensagem automática de <strong>confirmação</strong> do agendamento.</li>
+              <li>Após <strong>15 dias</strong>, contato automático para novo agendamento.</li>
+              <li><strong>Faturamento total</strong> e por colaborador.</li>
+              <li>Menos faltas, mais recorrência, operação previsível.</li>
+            </ul>
+            <div class="product-cta">
+              <a class="btn btn-primary" href="https://booknow.synapses-ia.com.br/" target="_blank" rel="noopener noreferrer">Abrir BookNow</a>
+              <a class="btn btn-ghost" href="https://booknow.synapses-ia.com.br/" target="_blank" rel="noopener noreferrer">Demo ao vivo →</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="product-card reverse">
+          <div class="product-visual pediu">
+            <img
+              class="product-shot-img"
+              src="assets/screenshot-pediu-chegou.png"
+              alt="Pediu Chegou — home com categorias e cardápio"
+              width="390"
+              height="844"
+              loading="lazy"
+              decoding="async"
+            />
+            <div class="product-visual-footer">
+              <span class="product-tag">Delivery & pedidos</span>
+              <h3>Pediu Chegou</h3>
+            </div>
+          </div>
+          <div class="product-body">
+            <h2>Pedido fácil, frete justo, cliente sempre informado</h2>
+            <ul>
+              <li><strong>Carrinho</strong> atualizado em tempo real.</li>
+              <li>Endereço com <strong>cálculo de frete</strong> pelas taxas do admin.</li>
+              <li>Pedido pronto: <strong>mensagem automática</strong> para o cliente.</li>
+              <li>Controle de pedidos e <strong>faturamento</strong> com agilidade.</li>
+            </ul>
+            <div class="product-cta">
+              <a class="btn btn-primary" href="https://pediu-chegou.duckdns.org/" target="_blank" rel="noopener noreferrer">Abrir Pediu Chegou</a>
+              <a class="btn btn-ghost" href="https://pediu-chegou.duckdns.org/" target="_blank" rel="noopener noreferrer">Loja ao vivo →</a>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="stack">
+      <div class="wrap">
+        <p class="section-label">Stack & método</p>
+        <h2 class="section-title">Do protótipo à operação: integração ponta a ponta</h2>
+        <p class="section-desc">
+          Front-end PWA, regras de negócio em n8n, WhatsApp via Evolution — desenhado para o fluxo real do seu time e do seu cliente.
+        </p>
+        <div class="stack-pills">
+          <span class="pill highlight">n8n</span>
+          <span class="pill highlight">Evolution API</span>
+          <span class="pill">PWA</span>
+          <span class="pill">Automação de mensagens</span>
+          <span class="pill">Painéis & faturamento</span>
+          <span class="pill">Conversão & UX</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-cta" id="contato">
+      <div class="wrap">
+        <div class="cta-box">
+          <h2>Pronto para elevar seu negócio ao mesmo padrão?</h2>
+          <p>
+            Teste as duas demos. Se quiser uma solução nessa linha — agendamento, delivery, automações ou um PWA sob medida — a Synapses.ia constrói com o mesmo nível de acabamento.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-whatsapp" href="https://wa.me/5511977154516?text=Ol%C3%A1%21%20Vim%20pelo%20site%20da%20Synapses.ia%20e%20gostaria%20de%20conversar%20sobre%20uma%20solu%C3%A7%C3%A3o." target="_blank" rel="noopener noreferrer">Conversar no WhatsApp</a>
+            <a class="btn btn-primary" href="https://booknow.synapses-ia.com.br/" target="_blank" rel="noopener noreferrer">Testar BookNow</a>
+            <a class="btn btn-secondary" href="https://pediu-chegou.duckdns.org/" target="_blank" rel="noopener noreferrer">Testar Pediu Chegou</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p class="brand-footer">Synapses.ia · Soluções tecnológicas & automações inteligentes</p>
+      <p>
+        <a href="https://wa.me/5511977154516?text=Ol%C3%A1%21%20Vim%20pelo%20site%20da%20Synapses.ia." target="_blank" rel="noopener noreferrer">WhatsApp</a>
+        ·
+        <a href="https://booknow.synapses-ia.com.br/" target="_blank" rel="noopener noreferrer">booknow.synapses-ia.com.br</a>
+        ·
+        <a href="https://pediu-chegou.duckdns.org/" target="_blank" rel="noopener noreferrer">pediu-chegou.duckdns.org</a>
+      </p>
+    </div>
+  </footer>
+
+  <a
+    class="wa-float"
+    href="https://wa.me/5511977154516?text=Ol%C3%A1%21%20Vim%20pelo%20site%20da%20Synapses.ia%20e%20gostaria%20de%20conversar%20sobre%20uma%20solu%C3%A7%C3%A3o."
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label="Abrir conversa no WhatsApp"
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.881 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  </a>
+</body>
+</html>
